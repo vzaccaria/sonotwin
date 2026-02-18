@@ -12,16 +12,15 @@ A macOS menu bar application for recording system audio and microphone with real
 
 ## Build & Run
 
+From the project root:
+
 ```bash
 # Build
-./build.sh
-
-# Or manually:
-swift build -c release
-cp .build/release/AudioScribeApp AudioScribeApp.app/Contents/MacOS/
+make build
 
 # Run
-open AudioScribeApp.app
+make run
+# Or: open AudioScribeApp/AudioScribeApp.app
 ```
 
 ## CLI Control
@@ -30,17 +29,17 @@ While the app is running, use `ascribe-ctl` from the project root:
 
 ```bash
 # Check status
-../ascribe-ctl status
+./ascribe-ctl status
 
 # Start recording
-../ascribe-ctl start --output ~/Desktop/recording.wav
+./ascribe-ctl start --output ~/Desktop/recording.wav
 
 # Start with options
-../ascribe-ctl start --system-only --duration 60 --output meeting.wav
-../ascribe-ctl start --mic-only --output voice.wav
+./ascribe-ctl start --system-only --duration 60 --output meeting.wav
+./ascribe-ctl start --mic-only --output voice.wav
 
 # Stop recording
-../ascribe-ctl stop
+./ascribe-ctl stop
 ```
 
 ## Architecture

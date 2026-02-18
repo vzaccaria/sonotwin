@@ -1,67 +1,38 @@
-.PHONY: build build-cli build-app run clean release install help
+.PHONY: build debug run clean help
 
 # Default target
 all: build
 
-# Build both CLI and App
-build: build-cli build-app
-
-# Build CLI tool only
-build-cli:
-	swift build -c release
-	cp .build/release/audioscribe AudioScribe.app/Contents/MacOS/
-
-# Build menu bar app only
-build-app:
+# Build menu bar app (release)
+build:
 	cd AudioScribeApp && swift build -c release
 	cp AudioScribeApp/.build/release/AudioScribeApp AudioScribeApp/AudioScribeApp.app/Contents/MacOS/
 
-# Debug builds
-debug: debug-cli debug-app
-
-debug-cli:
-	swift build
-
-debug-app:
+# Debug build
+debug:
 	cd AudioScribeApp && swift build
 
-# Run CLI tool
-run: build-cli
-	./ascribe $(ARGS)
-
 # Run menu bar app
-run-app: build-app
+run: build
 	open AudioScribeApp/AudioScribeApp.app
 
 # Clean all build artifacts
 clean:
-	swift package clean
-	rm -rf .build
 	rm -rf AudioScribeApp/.build
 	rm -f AudioScribeApp/*.d AudioScribeApp/*.swiftdeps
-	rm -f AudioScribe.app/Contents/MacOS/audioscribe
 	rm -f AudioScribeApp/AudioScribeApp.app/Contents/MacOS/AudioScribeApp
-
-# Install CLI to /usr/local/bin
-install: build-cli
-	cp .build/release/audioscribe /usr/local/bin/
 
 # Help
 help:
 	@echo "AudioScribe Build System"
 	@echo ""
 	@echo "Targets:"
-	@echo "  build       - Build both CLI and menu bar app (release)"
-	@echo "  build-cli   - Build CLI tool only"
-	@echo "  build-app   - Build menu bar app only"
-	@echo "  debug       - Build both in debug mode"
-	@echo "  run         - Build and run CLI (use ARGS= for arguments)"
-	@echo "  run-app     - Build and launch menu bar app"
-	@echo "  clean       - Remove all build artifacts"
-	@echo "  install     - Install CLI to /usr/local/bin"
+	@echo "  build   - Build menu bar app (release)"
+	@echo "  debug   - Build menu bar app (debug)"
+	@echo "  run     - Build and launch menu bar app"
+	@echo "  clean   - Remove all build artifacts"
 	@echo ""
-	@echo "Examples:"
-	@echo "  make build"
-	@echo "  make run ARGS='--system-only --duration 30 --output test.wav'"
-	@echo "  make run-app"
-	@echo "  make clean"
+	@echo "CLI Control (while app is running):"
+	@echo "  ./ascribe-ctl status"
+	@echo "  ./ascribe-ctl start --output recording.wav"
+	@echo "  ./ascribe-ctl stop"

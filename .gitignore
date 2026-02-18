@@ -1,6 +1,4 @@
 .DS_Store
-/.build
-/Packages
 xcuserdata/
 DerivedData/
 .swiftpm/configuration/registries.json
@@ -10,10 +8,7 @@ DerivedData/
 # Test recordings
 *.wav
 
-# CLI app bundle binary (regenerated from build)
-AudioScribe.app/Contents/MacOS/audioscribe
-
-# Menu bar app build artifacts
+# Build artifacts
 AudioScribeApp/.build/
 AudioScribeApp/*.d
 AudioScribeApp/*.swiftdeps
