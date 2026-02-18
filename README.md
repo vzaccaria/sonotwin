@@ -1,4 +1,4 @@
-# AudioScribe Menu Bar App
+# SonoTwin Menu Bar App
 
 A macOS menu bar application for recording system audio and microphone with real-time VU meters.
 
@@ -7,7 +7,7 @@ A macOS menu bar application for recording system audio and microphone with real
 - **Menu Bar Integration** - Lives in the menu bar with a waveform icon, no Dock icon
 - **Real-time VU Meters** - Shows audio levels using Accelerate-optimized RMS/peak calculation
 - **Permission Management** - Visual indicators and easy access to grant permissions
-- **CLI Control** - Control recordings via `ascribe-ctl` command-line tool
+- **CLI Control** - Control recordings via `sonotwin-ctl` command-line tool
 - **Mixed Recording** - Record system audio, microphone, or both simultaneously
 
 ## Build & Run
@@ -20,26 +20,26 @@ make build
 
 # Run
 make run
-# Or: open AudioScribeApp/AudioScribeApp.app
+# Or: open SonoTwinApp/SonoTwinApp.app
 ```
 
 ## CLI Control
 
-While the app is running, use `ascribe-ctl` from the project root:
+While the app is running, use `sonotwin-ctl` from the project root:
 
 ```bash
 # Check status
-./ascribe-ctl status
+./sonotwin-ctl status
 
 # Start recording
-./ascribe-ctl start --output ~/Desktop/recording.wav
+./sonotwin-ctl start --output ~/Desktop/recording.wav
 
 # Start with options
-./ascribe-ctl start --system-only --duration 60 --output meeting.wav
-./ascribe-ctl start --mic-only --output voice.wav
+./sonotwin-ctl start --system-only --duration 60 --output meeting.wav
+./sonotwin-ctl start --mic-only --output voice.wav
 
 # Stop recording
-./ascribe-ctl stop
+./sonotwin-ctl stop
 ```
 
 ## Architecture
@@ -47,9 +47,9 @@ While the app is running, use `ascribe-ctl` from the project root:
 ![](Assets/architecture.png)
 
 ```
-AudioScribeApp/Sources/AudioScribeApp/
+SonoTwinApp/Sources/SonoTwinApp/
 ├── App/
-│   ├── AudioScribeApp.swift      # @main entry point
+│   ├── SonoTwinApp.swift        # @main entry point
 │   └── AppDelegate.swift         # NSStatusItem + NSPopover management
 │
 ├── Core/                         # Audio capture (from CLI codebase)
@@ -81,7 +81,7 @@ AudioScribeApp/Sources/AudioScribeApp/
 
 ### App Layer
 
-**AudioScribeApp.swift**
+**SonoTwinApp.swift**
 
 - Uses `NSApplication` directly (not SwiftUI App lifecycle)
 - Sets `activationPolicy(.accessory)` to hide from Dock
@@ -148,7 +148,7 @@ AudioScribeApp/Sources/AudioScribeApp/
 
 **SocketServer**
 
-- Listens on `/tmp/audioscribe.sock`
+- Listens on `/tmp/sonotwin.sock`
 - Accepts connections in background thread
 - Dispatches to `CommandHandler` for processing
 
@@ -201,4 +201,4 @@ The app requires:
 - **Microphone** (`NSMicrophoneUsageDescription`) - For microphone recording
 - **Screen Recording** (`NSScreenCaptureUsageDescription`) - For system audio via ScreenCaptureKit
 
-Both are declared in `AudioScribeApp.app/Contents/Info.plist`.
+Both are declared in `SonoTwinApp.app/Contents/Info.plist`.

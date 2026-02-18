@@ -1,4 +1,4 @@
-# AudioScribe
+# SonoTwin
 
 A macOS menu bar app for recording system audio and microphone with real-time VU meters.
 
@@ -12,15 +12,15 @@ make run
 ## CLI Control
 
 ```bash
-./ascribe-ctl status
-./ascribe-ctl start --output recording.wav
-./ascribe-ctl stop
+./sonotwin-ctl status
+./sonotwin-ctl start --output recording.wav
+./sonotwin-ctl stop
 ```
 
 ## Project Structure
 
-- `AudioScribeApp/` - SwiftUI menu bar app (macOS 14+)
-- `ascribe-ctl` - CLI controller (bash script)
+- `SonoTwinApp/` - SwiftUI menu bar app (macOS 14+)
+- `sonotwin-ctl` - CLI controller (bash script)
 - `Assets/architecture.excalidraw` - Component diagram
 
 See [README.md](README.md) for full documentation.
@@ -30,7 +30,7 @@ See [README.md](README.md) for full documentation.
 macOS tracks privacy permissions (Screen Recording, Microphone) by app identity, which includes code signature and binary hash. After rebuilding, you may need to:
 
 1. Open **System Settings > Privacy & Security > Screen Recording**
-2. Remove the old `AudioScribeApp` entry
+2. Remove the old `SonoTwinApp` entry
 3. Re-add the newly built app
 
 This happens because unsigned/ad-hoc signed development builds change identity on each rebuild. To clear all screen recording permissions at once:

@@ -1,0 +1,486 @@
+{
+  "builtTestProducts" : [
+
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.SonoTwinApp-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "fileList" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/sources",
+      "importPath" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/AppDelegate.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/SonoTwinApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/LevelMeter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/RecordingEngine.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/AudioMixer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/MicrophoneCapture.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/SystemAudioCapture.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/WAVWriter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/CommandHandler.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/SocketServer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/PermissionManager.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/RecordingState.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PermissionStatusView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PopoverContentView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/RecordingControlsView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/VUMeterView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "SonoTwinApp",
+      "moduleOutputPath" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/Modules/SonoTwinApp.swiftmodule",
+      "objects" : [
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/AppDelegate.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/SonoTwinApp.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/LevelMeter.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/RecordingEngine.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/AudioMixer.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/MicrophoneCapture.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/SystemAudioCapture.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/WAVWriter.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/CommandHandler.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/SocketServer.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/PermissionManager.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/RecordingState.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/PermissionStatusView.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/PopoverContentView.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/RecordingControlsView.swift.o",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/VUMeterView.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-O",
+        "-j8",
+        "-DSWIFT_PACKAGE",
+        "-module-cache-path",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "SonoTwinApp_main",
+        "-color-diagnostics",
+        "-swift-version",
+        "5",
+        "-F",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-sdk",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "sonotwinapp"
+      ],
+      "outputFileMapPath" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/AppDelegate.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/SonoTwinApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/LevelMeter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/RecordingEngine.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/AudioMixer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/MicrophoneCapture.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/SystemAudioCapture.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/WAVWriter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/CommandHandler.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/SocketServer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/PermissionManager.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/RecordingState.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/PermissionStatusView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/PopoverContentView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/RecordingControlsView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/VUMeterView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/Modules/SonoTwinApp.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/AppDelegate.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/SonoTwinApp.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/LevelMeter.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/RecordingEngine.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/AudioMixer.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/MicrophoneCapture.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/SystemAudioCapture.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/WAVWriter.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/CommandHandler.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/SocketServer.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/PermissionManager.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/RecordingState.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PermissionStatusView.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PopoverContentView.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/RecordingControlsView.swift",
+        "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/VUMeterView.swift"
+      ],
+      "tempsPath" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build",
+      "wholeModuleOptimization" : true
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "SonoTwinApp" : [
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "-module-name",
+      "SonoTwinApp",
+      "-package-name",
+      "sonotwinapp",
+      "-whole-module-optimization",
+      "-num-threads",
+      "8",
+      "-c",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/AppDelegate.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/SonoTwinApp.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/LevelMeter.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/RecordingEngine.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/AudioMixer.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/MicrophoneCapture.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/SystemAudioCapture.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/WAVWriter.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/CommandHandler.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/SocketServer.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/PermissionManager.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/RecordingState.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PermissionStatusView.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PopoverContentView.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/RecordingControlsView.swift",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/VUMeterView.swift",
+      "-I",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-O",
+      "-j8",
+      "-DSWIFT_PACKAGE",
+      "-module-cache-path",
+      "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "SonoTwinApp_main",
+      "-color-diagnostics",
+      "-swift-version",
+      "5",
+      "-F",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-sdk",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "sonotwinapp",
+      "-driver-use-frontend-path",
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "SonoTwinApp" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+
+  },
+  "writeCommands" : {
+    "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/AppDelegate.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/SonoTwinApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/LevelMeter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/RecordingEngine.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/AudioMixer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/MicrophoneCapture.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/SystemAudioCapture.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/WAVWriter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/CommandHandler.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/SocketServer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/PermissionManager.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/RecordingState.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PermissionStatusView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PopoverContentView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/RecordingControlsView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/VUMeterView.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/sources"
+    },
+    "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/AppDelegate.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/AudioMixer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/CommandHandler.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/LevelMeter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/MicrophoneCapture.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/PermissionManager.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/PermissionStatusView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/PopoverContentView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/RecordingControlsView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/RecordingEngine.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/RecordingState.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/SocketServer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/SonoTwinApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/SystemAudioCapture.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/VUMeterView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.build/WAVWriter.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/SonoTwinApp.product/Objects.LinkFileList"
+    },
+    "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"
+    }
+  }
+}

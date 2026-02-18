@@ -5,26 +5,26 @@ all: build
 
 # Build menu bar app (release)
 build:
-	cd AudioScribeApp && swift build -c release
-	cp AudioScribeApp/.build/release/AudioScribeApp AudioScribeApp/AudioScribeApp.app/Contents/MacOS/
+	cd SonoTwinApp && swift build -c release
+	cp SonoTwinApp/.build/release/SonoTwinApp SonoTwinApp/SonoTwinApp.app/Contents/MacOS/
 
 # Debug build
 debug:
-	cd AudioScribeApp && swift build
+	cd SonoTwinApp && swift build
 
 # Run menu bar app
 run: build
-	open AudioScribeApp/AudioScribeApp.app
+	open SonoTwinApp/SonoTwinApp.app
 
 # Clean all build artifacts
 clean:
-	rm -rf AudioScribeApp/.build
-	rm -f AudioScribeApp/*.d AudioScribeApp/*.swiftdeps
-	rm -f AudioScribeApp/AudioScribeApp.app/Contents/MacOS/AudioScribeApp
+	rm -rf SonoTwinApp/.build
+	rm -f SonoTwinApp/*.d SonoTwinApp/*.swiftdeps
+	rm -f SonoTwinApp/SonoTwinApp.app/Contents/MacOS/SonoTwinApp
 
 # Help
 help:
-	@echo "AudioScribe Build System"
+	@echo "SonoTwin Build System"
 	@echo ""
 	@echo "Targets:"
 	@echo "  build   - Build menu bar app (release)"
@@ -33,6 +33,6 @@ help:
 	@echo "  clean   - Remove all build artifacts"
 	@echo ""
 	@echo "CLI Control (while app is running):"
-	@echo "  ./ascribe-ctl status"
-	@echo "  ./ascribe-ctl start --output recording.wav"
-	@echo "  ./ascribe-ctl stop"
+	@echo "  ./sonotwin-ctl status"
+	@echo "  ./sonotwin-ctl start --output recording.wav"
+	@echo "  ./sonotwin-ctl stop"

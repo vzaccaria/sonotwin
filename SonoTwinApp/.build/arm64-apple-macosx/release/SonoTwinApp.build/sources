@@ -1,0 +1,16 @@
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/AppDelegate.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/App/SonoTwinApp.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/LevelMeter.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Audio/RecordingEngine.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/AudioMixer.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/MicrophoneCapture.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/SystemAudioCapture.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Core/WAVWriter.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/CommandHandler.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/Socket/SocketServer.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/PermissionManager.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/State/RecordingState.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PermissionStatusView.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/PopoverContentView.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/RecordingControlsView.swift
+/Users/zaccaria/projects/github/vzaccaria/audioscribe/SonoTwinApp/Sources/SonoTwinApp/UI/VUMeterView.swift
