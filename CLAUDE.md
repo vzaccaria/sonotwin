@@ -62,6 +62,23 @@ The app bundle must contain:
 
 **Key Finding**: Unlike microphone, screen recording permission works when running the binary directly from the app bundle, without needing `open`.
 
+### Combined Mode (Mic + System)
+
+**Problem**: Combined mode needs both permissions, but:
+- Direct run: screen recording ✓, mic ✗
+- Via `open`: mic ✓, screen recording may prompt again
+
+**Solution**: "Prime" the screen recording permission by running system-only once directly, then use `open` for combined mode:
+```bash
+# First run (primes screen recording permission for the app bundle)
+./AudioScribe.app/Contents/MacOS/audioscribe --system-only --duration 1 --output /dev/null
+
+# Then combined mode works via open
+./ascribe --duration 30 --output both.wav
+```
+
+After the first successful system-only run, the app bundle's screen recording permission is cached and works via `open` too.
+
 ### ScreenCaptureKit Configuration
 
 **Problem**: Setting `config.width = 1` and `config.height = 1` for "audio-only" capture causes `startCapture()` to fail with "The stream is nil" error.
