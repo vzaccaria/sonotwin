@@ -44,8 +44,10 @@ While the app is running, use `ascribe-ctl` from the project root:
 
 ## Architecture
 
+See [architecture.excalidraw](architecture.excalidraw) for a visual diagram.
+
 ```
-Sources/AudioScribeApp/
+AudioScribeApp/Sources/AudioScribeApp/
 ├── App/
 │   ├── AudioScribeApp.swift      # @main entry point
 │   └── AppDelegate.swift         # NSStatusItem + NSPopover management
