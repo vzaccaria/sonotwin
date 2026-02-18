@@ -10,5 +10,14 @@ DerivedData/
 # Test recordings
 *.wav
 
-# App bundle (regenerated from build)
+# CLI app bundle binary (regenerated from build)
 AudioScribe.app/Contents/MacOS/audioscribe
+
+# Menu bar app build artifacts
+AudioScribeApp/.build/
+AudioScribeApp/*.d
+AudioScribeApp/*.swiftdeps
+AudioScribeApp/AudioScribeApp.app/Contents/MacOS/AudioScribeApp
+
+# Claude session data
+.claude/
