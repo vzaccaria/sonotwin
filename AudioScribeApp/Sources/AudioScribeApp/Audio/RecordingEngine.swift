@@ -11,10 +11,11 @@ import AVFoundation
 // - WAVWriter: Writes audio data to a .wav file
 // - LevelMeter: Calculates audio levels for VU meters
 //
-// @unchecked Sendable: We manually ensure thread safety using NSLock.
-// Without @unchecked, Swift would require all properties to be Sendable.
+// Using 'actor' provides automatic thread safety for all properties.
+// Swift ensures only one task can access actor state at a time,
+// eliminating the need for manual locking (NSLock).
 
-final class RecordingEngine: @unchecked Sendable {
+actor RecordingEngine {
 
     // MARK: - Audio Pipeline Components
     // These are optional because they're created when recording starts
@@ -27,32 +28,23 @@ final class RecordingEngine: @unchecked Sendable {
 
     // MARK: - Level Meters
     // One for each audio source. These calculate RMS/peak for VU meters.
-    // 'let' means these are constants - created once and never replaced.
 
     private let systemMeter = LevelMeter()
     private let micMeter = LevelMeter()
 
     // MARK: - State
     private var isRecording = false
-    private var levelUpdateCallback: ((Float, Float, Float, Float) -> Void)?
-    private var levelUpdateTimer: Timer?
+    private var levelUpdateCallback: (@Sendable (Float, Float, Float, Float) -> Void)?
 
     private var recordingSystemAudio = false
     private var recordingMicrophone = false
 
-    // MARK: - Thread Safety
-    // NSLock provides mutual exclusion for accessing shared state.
-    // Audio callbacks come from different threads, so we need synchronization.
-
-    private let lock = NSLock()
-
     // MARK: - Configuration
 
-    /// Set callback for level updates (called on main thread at ~30fps).
+    /// Set callback for level updates (called at ~30fps).
     /// Parameters are: systemRMS, systemPeak, micRMS, micPeak (all 0.0-1.0).
-    func setLevelUpdateCallback(_ callback: @escaping (Float, Float, Float, Float) -> Void) {
-        lock.lock()
-        defer { lock.unlock() }
+    /// The callback must be @Sendable since it's called from actor context.
+    func setLevelUpdateCallback(_ callback: @escaping @Sendable (Float, Float, Float, Float) -> Void) {
         self.levelUpdateCallback = callback
     }
 
@@ -70,23 +62,14 @@ final class RecordingEngine: @unchecked Sendable {
         recordMicrophone: Bool,
         duration: TimeInterval?
     ) async throws {
-        // Check if already recording (with thread safety).
-        lock.lock()
-        guard !isRecording else {
-            lock.unlock()
-            return
-        }
-        lock.unlock()
+        guard !isRecording else { return }
 
         // MARK: Create WAV Writer
         // This opens the output file and writes the WAV header.
         let newWriter = try WAVWriter(outputPath: outputPath)
-
-        lock.lock()
         self.writer = newWriter
         self.recordingSystemAudio = recordSystemAudio
         self.recordingMicrophone = recordMicrophone
-        lock.unlock()
 
         // MARK: Setup Audio Pipeline
         // The pipeline depends on which sources are selected.
@@ -96,31 +79,29 @@ final class RecordingEngine: @unchecked Sendable {
             // MARK: Combined Mode (System + Mic)
             // Create a mixer to combine both streams.
             let newMixer = AudioMixer(writer: newWriter)
-
-            lock.lock()
             self.mixer = newMixer
-            lock.unlock()
 
             // Setup system audio capture with callback.
-            // [weak self] prevents retain cycles - the closure doesn't keep 'self' alive.
+            // [weak self] prevents retain cycles.
             let sysCapture = SystemAudioCapture()
             sysCapture.onSamples = { [weak self] buffer in
-                self?.handleSystemSamples(buffer, mixing: true)
+                Task { [weak self] in
+                    await self?.handleSystemSamples(buffer, mixing: true)
+                }
             }
 
             // Setup microphone capture.
             let micCap = MicrophoneCapture()
             micCap.onSamples = { [weak self] buffer in
-                self?.handleMicSamples(buffer, mixing: true)
+                Task { [weak self] in
+                    await self?.handleMicSamples(buffer, mixing: true)
+                }
             }
 
-            lock.lock()
             self.systemCapture = sysCapture
             self.micCapture = micCap
-            lock.unlock()
 
             // Start both captures.
-            // 'try await' for async operations that can fail.
             try await sysCapture.start()
             try micCap.start()
 
@@ -128,85 +109,61 @@ final class RecordingEngine: @unchecked Sendable {
             // MARK: System Audio Only
             let sysCapture = SystemAudioCapture()
             sysCapture.onSamples = { [weak self] buffer in
-                self?.handleSystemSamples(buffer, mixing: false)
+                Task { [weak self] in
+                    await self?.handleSystemSamples(buffer, mixing: false)
+                }
             }
-
-            lock.lock()
             self.systemCapture = sysCapture
-            lock.unlock()
-
             try await sysCapture.start()
 
         } else if recordMicrophone {
             // MARK: Microphone Only
             let micCap = MicrophoneCapture()
             micCap.onSamples = { [weak self] buffer in
-                self?.handleMicSamples(buffer, mixing: false)
+                Task { [weak self] in
+                    await self?.handleMicSamples(buffer, mixing: false)
+                }
             }
-
-            lock.lock()
             self.micCapture = micCap
-            lock.unlock()
-
             try micCap.start()
         }
 
-        lock.lock()
         isRecording = true
-        lock.unlock()
 
         // MARK: Start Level Updates
-        // Timer must be scheduled on the main thread for UI updates.
-        await MainActor.run {
-            self.startLevelUpdates()
+        // Start a detached task that periodically sends level updates.
+        Task { [weak self] in
+            await self?.levelUpdateLoop()
         }
     }
 
     /// Stop recording and finalize output file.
     func stopRecording() async {
-        lock.lock()
-        guard isRecording else {
-            lock.unlock()
-            return
-        }
-        lock.unlock()
+        guard isRecording else { return }
 
-        // Stop the level update timer.
-        await MainActor.run {
-            self.stopLevelUpdates()
-        }
-
-        // Get references to components (with lock) before stopping them.
-        lock.lock()
-        let sysCapture = systemCapture
-        let micCap = micCapture
-        let mixerRef = mixer
-        let writerRef = writer
-        lock.unlock()
+        // Mark as not recording first to stop the level update loop.
+        isRecording = false
 
         // Stop captures.
-        if let sysCapture = sysCapture {
+        if let sysCapture = systemCapture {
             await sysCapture.stop()
         }
-        micCap?.stop()
+        micCapture?.stop()
 
         // Flush any remaining buffered audio.
-        // This is critical - without it, the last few samples are lost!
-        mixerRef?.flush()
+        // This is critical - without it, the last samples are lost!
+        mixer?.flush()
 
         // Finalize the WAV file (updates header with actual size).
-        try? writerRef?.finalize()
+        try? writer?.finalize()
 
         // Reset state for next recording.
-        lock.lock()
         systemCapture = nil
         micCapture = nil
         mixer = nil
         writer = nil
-        isRecording = false
         recordingSystemAudio = false
         recordingMicrophone = false
-        lock.unlock()
 
         // Reset meters to zero.
         systemMeter.reset()
@@ -214,73 +171,50 @@ final class RecordingEngine: @unchecked Sendable {
     }
 
     // MARK: - Audio Sample Handlers
-    // These are called from audio capture callbacks (potentially on background threads).
+    // Called from audio capture callbacks via Task.
 
     private func handleSystemSamples(_ buffer: AVAudioPCMBuffer, mixing: Bool) {
         // Update level meter for VU display.
         systemMeter.process(buffer)
 
-        // Get references with lock.
-        lock.lock()
-        let mixerRef = mixer
-        let writerRef = writer
-        lock.unlock()
-
         // Route audio to mixer or directly to writer.
         if mixing {
-            mixerRef?.addSystemAudio(buffer)
+            mixer?.addSystemAudio(buffer)
         } else {
-            writerRef?.appendSamples(buffer)
+            writer?.appendSamples(buffer)
         }
     }
 
     private func handleMicSamples(_ buffer: AVAudioPCMBuffer, mixing: Bool) {
         micMeter.process(buffer)
 
-        lock.lock()
-        let mixerRef = mixer
-        let writerRef = writer
-        lock.unlock()
-
         if mixing {
-            mixerRef?.addMicAudio(buffer)
+            mixer?.addMicAudio(buffer)
         } else {
-            writerRef?.appendSamples(buffer)
+            writer?.appendSamples(buffer)
         }
     }
 
-    // MARK: - Level Update Timer
-    // Updates UI at ~30fps with current audio levels.
+    // MARK: - Level Update Loop
+    // Runs while recording, sending level updates at ~30fps.
 
-    @MainActor
-    private func startLevelUpdates() {
-        // Timer fires every 1/30 second (~33ms).
-        // [weak self] prevents the timer from keeping this object alive.
-        levelUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            self?.sendLevelUpdate()
-        }
-    }
+    private func levelUpdateLoop() async {
+        while isRecording {
+            // Get current levels from meters.
+            let sysRMS = recordingSystemAudio ? systemMeter.rmsLevel : 0
+            let sysPeak = recordingSystemAudio ? systemMeter.peakLevel : 0
+            let micRMS = recordingMicrophone ? micMeter.rmsLevel : 0
+            let micPeak = recordingMicrophone ? micMeter.peakLevel : 0
 
-    @MainActor
-    private func stopLevelUpdates() {
-        // Invalidate stops the timer and removes it from the run loop.
-        levelUpdateTimer?.invalidate()
-        levelUpdateTimer = nil
-    }
+            // Send to callback on main thread for UI updates.
+            if let callback = levelUpdateCallback {
+                await MainActor.run {
+                    callback(sysRMS, sysPeak, micRMS, micPeak)
+                }
+            }
 
-    private func sendLevelUpdate() {
-        // Read current levels from meters.
-        lock.lock()
-        let sysRMS = recordingSystemAudio ? systemMeter.rmsLevel : 0
-        let sysPeak = recordingSystemAudio ? systemMeter.peakLevel : 0
-        let micRMS = recordingMicrophone ? micMeter.rmsLevel : 0
-        let micPeak = recordingMicrophone ? micMeter.peakLevel : 0
-        let callback = levelUpdateCallback
-        lock.unlock()
-
-        // Call the callback on the main thread (for UI updates).
-        DispatchQueue.main.async {
-            callback?(sysRMS, sysPeak, micRMS, micPeak)
+            // Wait ~33ms (30fps). Use Task.sleep for async-friendly sleeping.
+            try? await Task.sleep(nanoseconds: 33_000_000)
         }
     }
 }

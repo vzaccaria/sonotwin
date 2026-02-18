@@ -64,7 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             // Set up a callback to receive audio level updates.
             // [weak state] prevents a retain cycle (memory leak).
             // The callback receives 4 floats: system RMS, system peak, mic RMS, mic peak.
-            engine.setLevelUpdateCallback { [weak state] sysRMS, sysPeak, micRMS, micPeak in
+            // 'await' is required because RecordingEngine is an actor.
+            await engine.setLevelUpdateCallback { [weak state] sysRMS, sysPeak, micRMS, micPeak in
                 Task { @MainActor in
                     state?.updateLevels(systemRMS: sysRMS, systemPeak: sysPeak, micRMS: micRMS, micPeak: micPeak)
                 }
