@@ -50,6 +50,10 @@ While the app is running, use `sonotwin-ctl` from the project root:
 
 ![](Assets/architecture.png)
 
+### Concurrency Model
+
+See [concurrency-model.excalidraw](Assets/concurrency-model.excalidraw) for a detailed diagram explaining threads, actors, and delegates.
+
 ```
 SonoTwinApp/Sources/SonoTwinApp/
 ├── App/
