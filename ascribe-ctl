@@ -1,0 +1,165 @@
+#!/bin/bash
+#
+# ascribe-ctl - CLI controller for AudioScribe menu bar app
+#
+# Usage:
+#   ascribe-ctl start [--output FILE] [--duration SECONDS] [--system-only] [--mic-only]
+#   ascribe-ctl stop
+#   ascribe-ctl status
+#
+
+SOCKET="/tmp/audioscribe.sock"
+
+# Check if socket exists
+check_socket() {
+    if [ ! -S "$SOCKET" ]; then
+        echo "Error: AudioScribe app is not running"
+        echo "Start the app first: open AudioScribeApp/AudioScribeApp.app"
+        exit 1
+    fi
+}
+
+# Send command and get response
+send_command() {
+    local cmd="$1"
+    echo "$cmd" | nc -U "$SOCKET" 2>/dev/null
+}
+
+# Parse JSON response
+parse_response() {
+    local response="$1"
+    local field="$2"
+    echo "$response" | grep -o "\"$field\":[^,}]*" | cut -d: -f2 | tr -d '"' | tr -d ' '
+}
+
+# Format status output
+format_status() {
+    local response="$1"
+    local recording=$(parse_response "$response" "recording")
+    local elapsed=$(parse_response "$response" "elapsedSeconds")
+    local path=$(parse_response "$response" "outputPath")
+
+    if [ "$recording" = "true" ]; then
+        echo "Status: Recording"
+        if [ -n "$elapsed" ] && [ "$elapsed" != "null" ]; then
+            local mins=$((elapsed / 60))
+            local secs=$((elapsed % 60))
+            printf "Elapsed: %02d:%02d\n" "$mins" "$secs"
+        fi
+        if [ -n "$path" ] && [ "$path" != "null" ]; then
+            echo "Output: $path"
+        fi
+    else
+        echo "Status: Not recording"
+    fi
+}
+
+case "$1" in
+    start)
+        check_socket
+        shift
+
+        # Build JSON command
+        json='{"action":"start"'
+
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --output|-o)
+                    json="$json,\"output\":\"$2\""
+                    shift 2
+                    ;;
+                --duration|-d)
+                    json="$json,\"duration\":$2"
+                    shift 2
+                    ;;
+                --system-only)
+                    json="$json,\"systemAudio\":true,\"microphone\":false"
+                    shift
+                    ;;
+                --mic-only)
+                    json="$json,\"systemAudio\":false,\"microphone\":true"
+                    shift
+                    ;;
+                *)
+                    echo "Unknown option: $1"
+                    exit 1
+                    ;;
+            esac
+        done
+
+        json="$json}"
+
+        response=$(send_command "$json")
+        success=$(parse_response "$response" "success")
+        error=$(parse_response "$response" "error")
+
+        if [ "$success" = "true" ]; then
+            path=$(parse_response "$response" "outputPath")
+            echo "Recording started"
+            if [ -n "$path" ] && [ "$path" != "null" ]; then
+                echo "Output: $path"
+            fi
+        else
+            echo "Failed to start recording"
+            if [ -n "$error" ] && [ "$error" != "null" ]; then
+                echo "Error: $error"
+            fi
+            exit 1
+        fi
+        ;;
+
+    stop)
+        check_socket
+        response=$(send_command '{"action":"stop"}')
+        success=$(parse_response "$response" "success")
+        error=$(parse_response "$response" "error")
+
+        if [ "$success" = "true" ]; then
+            elapsed=$(parse_response "$response" "elapsedSeconds")
+            path=$(parse_response "$response" "outputPath")
+            echo "Recording stopped"
+            if [ -n "$elapsed" ] && [ "$elapsed" != "null" ]; then
+                mins=$((elapsed / 60))
+                secs=$((elapsed % 60))
+                printf "Duration: %02d:%02d\n" "$mins" "$secs"
+            fi
+            if [ -n "$path" ] && [ "$path" != "null" ]; then
+                echo "Saved to: $path"
+            fi
+        else
+            echo "Failed to stop recording"
+            if [ -n "$error" ] && [ "$error" != "null" ]; then
+                echo "Error: $error"
+            fi
+            exit 1
+        fi
+        ;;
+
+    status)
+        check_socket
+        response=$(send_command '{"action":"status"}')
+        format_status "$response"
+        ;;
+
+    *)
+        echo "AudioScribe CLI Controller"
+        echo ""
+        echo "Usage:"
+        echo "  ascribe-ctl start [OPTIONS]   Start recording"
+        echo "  ascribe-ctl stop              Stop recording"
+        echo "  ascribe-ctl status            Show recording status"
+        echo ""
+        echo "Start options:"
+        echo "  --output, -o FILE     Output file path"
+        echo "  --duration, -d SECS   Recording duration in seconds"
+        echo "  --system-only         Record system audio only"
+        echo "  --mic-only            Record microphone only"
+        echo ""
+        echo "Examples:"
+        echo "  ascribe-ctl start --output meeting.wav"
+        echo "  ascribe-ctl start --system-only --duration 60"
+        echo "  ascribe-ctl status"
+        echo "  ascribe-ctl stop"
+        exit 1
+        ;;
+esac
