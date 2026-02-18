@@ -44,7 +44,7 @@ While the app is running, use `ascribe-ctl` from the project root:
 
 ## Architecture
 
-See [architecture.excalidraw](architecture.excalidraw) for a visual diagram.
+![](Assets/architecture.png)
 
 ```
 AudioScribeApp/Sources/AudioScribeApp/
@@ -82,10 +82,12 @@ AudioScribeApp/Sources/AudioScribeApp/
 ### App Layer
 
 **AudioScribeApp.swift**
+
 - Uses `NSApplication` directly (not SwiftUI App lifecycle)
 - Sets `activationPolicy(.accessory)` to hide from Dock
 
 **AppDelegate.swift**
+
 - Creates `NSStatusItem` with SF Symbol icon
 - Manages `NSPopover` with SwiftUI content via `NSHostingController`
 - Initializes `RecordingEngine` and `SocketServer`
@@ -93,11 +95,13 @@ AudioScribeApp/Sources/AudioScribeApp/
 ### Audio Layer
 
 **RecordingEngine**
+
 - Coordinates `SystemAudioCapture`, `MicrophoneCapture`, `AudioMixer`, and `WAVWriter`
 - Processes audio buffers through `LevelMeter` for VU display
 - Sends level updates to UI at 30fps via callback
 
 **LevelMeter**
+
 - Uses `vDSP_rmsqv` for efficient RMS calculation
 - Uses `vDSP_maxmgv` for peak detection
 - Applies smoothing for stable meter display
@@ -106,42 +110,50 @@ AudioScribeApp/Sources/AudioScribeApp/
 ### State Layer
 
 **RecordingState** (`@Observable`)
+
 - Holds all UI-visible state: `isRecording`, `elapsedTime`, audio levels
 - Holds settings: `recordSystemAudio`, `recordMicrophone`, `duration`
 - Provides `startRecording()` / `stopRecording()` methods
 
 **PermissionManager** (`@Observable`)
+
 - Tracks `microphonePermission` and `screenRecordingPermission` states
 - Provides methods to request permissions or open System Settings
 
 ### UI Layer (SwiftUI)
 
 **PopoverContentView**
+
 - Main container assembling all UI components
 - Uses `@Bindable` to connect to `RecordingState`
 
 **VUMeterView**
+
 - Gradient bar from green → yellow → orange → red
 - White/orange/red peak indicator based on level
 - dB scale labels at bottom
 
 **RecordingControlsView**
+
 - Checkbox toggles for audio sources
 - Large Start/Stop button with recording indicator
 - Elapsed time display during recording
 
 **PermissionStatusView**
+
 - Green/yellow/red circles for each permission
 - "Grant" or "Settings" buttons based on state
 
 ### Socket Layer
 
 **SocketServer**
+
 - Listens on `/tmp/audioscribe.sock`
 - Accepts connections in background thread
 - Dispatches to `CommandHandler` for processing
 
 **CommandHandler**
+
 - Parses JSON commands: `{"action": "start|stop|status", ...}`
 - Returns JSON responses: `{"success": true, "recording": false, ...}`
 - Interacts with `RecordingState` on MainActor
@@ -164,7 +176,13 @@ AudioScribeApp/Sources/AudioScribeApp/
 ### Responses
 
 ```json
-{"success": true, "recording": true, "elapsedSeconds": 42, "outputPath": "/path/to/file.wav", "error": null}
+{
+  "success": true,
+  "recording": true,
+  "elapsedSeconds": 42,
+  "outputPath": "/path/to/file.wav",
+  "error": null
+}
 ```
 
 ## Key Swift Concepts Used
@@ -179,6 +197,7 @@ AudioScribeApp/Sources/AudioScribeApp/
 ## Permissions
 
 The app requires:
+
 - **Microphone** (`NSMicrophoneUsageDescription`) - For microphone recording
 - **Screen Recording** (`NSScreenCaptureUsageDescription`) - For system audio via ScreenCaptureKit
 

@@ -21,7 +21,7 @@ make run
 
 - `AudioScribeApp/` - SwiftUI menu bar app (macOS 14+)
 - `ascribe-ctl` - CLI controller (bash script)
-- `architecture.excalidraw` - Component diagram
+- `Assets/architecture.excalidraw` - Component diagram
 
 See [README.md](README.md) for full documentation.
 
