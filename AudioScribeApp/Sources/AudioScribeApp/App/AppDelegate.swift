@@ -1,65 +1,107 @@
 import AppKit
 import SwiftUI
 
-/// App delegate managing NSStatusItem and popover
+// MARK: - AppDelegate
+// The AppDelegate is a design pattern from Apple frameworks.
+// It receives notifications about app lifecycle events (launch, terminate, etc.).
+// We inherit from NSObject (required for Objective-C interop) and adopt
+// NSApplicationDelegate (the protocol defining lifecycle methods).
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+
+    // MARK: - Properties
+
+    // NSStatusItem represents the icon in the menu bar.
+    // It's optional (?) because it's created after app launch.
     private var statusItem: NSStatusItem?
+
+    // NSPopover is the floating panel that appears when clicking the menu bar icon.
+    // Think of it like a speech bubble attached to the menu bar.
     private var popover: NSPopover?
+
+    // Our custom state and engine objects.
+    // These are optional because they're initialized in applicationDidFinishLaunching.
     private var recordingState: RecordingState?
     private var recordingEngine: RecordingEngine?
     private var socketServer: SocketServer?
 
+    // MARK: - NSApplicationDelegate Methods
+
+    // This method is called once the app has finished launching.
+    // It's the ideal place to set up your UI and services.
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Create status item
+
+        // MARK: Create Status Item (Menu Bar Icon)
+        // NSStatusBar.system is the system's menu bar.
+        // .squareLength creates an icon-sized item (as opposed to variable width).
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
+        // Configure the button that appears in the menu bar.
+        // SF Symbols (like "waveform") are Apple's built-in icon library.
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "AudioScribe")
+            // #selector references an @objc method by name (Objective-C interop).
             button.action = #selector(togglePopover)
+            // 'target = self' means this object receives the action when clicked.
             button.target = self
         }
 
-        // Initialize state and engine
+        // MARK: Initialize State and Engine
+        // RecordingState holds all observable UI state.
+        // RecordingEngine handles the actual audio capture.
         let state = RecordingState()
         let engine = RecordingEngine()
 
         self.recordingState = state
         self.recordingEngine = engine
 
-        // Connect engine to state
+        // MARK: Connect Engine to State
+        // Task creates an asynchronous context for async/await code.
+        // @MainActor ensures this runs on the main thread (required for UI).
         Task { @MainActor in
             state.setRecordingEngine(engine)
 
-            // Set up level update callback
-            await engine.setLevelUpdateCallback { [weak state] sysRMS, sysPeak, micRMS, micPeak in
+            // Set up a callback to receive audio level updates.
+            // [weak state] prevents a retain cycle (memory leak).
+            // The callback receives 4 floats: system RMS, system peak, mic RMS, mic peak.
+            engine.setLevelUpdateCallback { [weak state] sysRMS, sysPeak, micRMS, micPeak in
                 Task { @MainActor in
                     state?.updateLevels(systemRMS: sysRMS, systemPeak: sysPeak, micRMS: micRMS, micPeak: micPeak)
                 }
             }
         }
 
-        // Create popover
+        // MARK: Create Popover
+        // The popover displays our SwiftUI UI when the menu bar icon is clicked.
         let popover = NSPopover()
         popover.contentSize = NSSize(width: 280, height: 400)
+        // .transient means clicking outside closes the popover automatically.
         popover.behavior = .transient
         popover.delegate = self
+
+        // NSHostingController bridges SwiftUI views into AppKit.
+        // This lets us use SwiftUI for our UI while using AppKit for the menu bar.
         popover.contentViewController = NSHostingController(rootView: PopoverContentView(state: state))
         self.popover = popover
 
-        // Start socket server
+        // MARK: Start Socket Server
+        // The socket server allows external control via the ascribe-ctl script.
         socketServer = SocketServer(recordingState: state)
         socketServer?.start()
 
-        // Request permissions on first launch
+        // MARK: Check Permissions
+        // Request/check permissions when the app first launches.
         Task {
             await state.permissionManager.refreshPermissions()
         }
     }
 
+    // Called when the app is about to quit.
+    // Clean up resources here.
     func applicationWillTerminate(_ notification: Notification) {
         socketServer?.stop()
 
-        // Stop any ongoing recording
+        // Stop any ongoing recording to ensure the file is properly finalized.
         if let state = recordingState, state.isRecording {
             Task {
                 await state.stopRecording()
@@ -67,20 +109,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
+    // MARK: - Actions
+
+    // @objc exposes this method to the Objective-C runtime.
+    // This is required because NSButton's action/target mechanism uses Objective-C.
     @objc private func togglePopover() {
         guard let button = statusItem?.button, let popover = popover else { return }
 
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            // Show the popover attached to the menu bar button.
+            // .minY means it appears below the button.
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
 
-            // Activate app to ensure popover gets focus
+            // Bring our app to the front so the popover can receive keyboard focus.
             NSApp.activate(ignoringOtherApps: true)
         }
     }
 
-    // NSPopoverDelegate
+    // MARK: - NSPopoverDelegate
+
+    // This delegate method controls whether the popover can be "torn off"
+    // into a separate window. We return false to keep it attached.
     func popoverShouldDetach(_ popover: NSPopover) -> Bool {
         return false
     }

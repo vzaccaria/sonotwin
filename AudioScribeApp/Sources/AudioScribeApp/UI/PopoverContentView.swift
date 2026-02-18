@@ -1,28 +1,46 @@
 import SwiftUI
 
-/// Main popover content view
+// MARK: - PopoverContentView
+// The main content view displayed in the menu bar popover.
+// This is a "container view" that assembles other views into a complete UI.
+//
+// SwiftUI uses a declarative syntax - you describe what the UI should look like,
+// and SwiftUI handles creating, updating, and animating the actual views.
+
 struct PopoverContentView: View {
+
+    // @Bindable connects to an @Observable object.
+    // When any @Observable property changes, SwiftUI re-evaluates body.
     @Bindable var state: RecordingState
 
     var body: some View {
+        // VStack stacks children vertically.
+        // spacing: 16 puts 16 points between each child.
         VStack(spacing: 16) {
-            // Header
+
+            // MARK: Header
             HStack {
+                // SF Symbol icon - Apple's built-in icon library
                 Image(systemName: "waveform")
                     .foregroundColor(.blue)
                 Text("AudioScribe")
                     .font(.headline)
-                Spacer()
+                Spacer()  // Pushes content to the left
             }
 
-            Divider()
+            Divider()  // Horizontal line separator
 
-            // Permission status
+            // MARK: Permission Status
+            // Shows mic and screen recording permission states.
+            // state.permissionManager is also @Observable, so permission
+            // changes automatically update this view.
             PermissionStatusView(permissionManager: state.permissionManager)
 
             Divider()
 
-            // VU Meters
+            // MARK: VU Meters
+            // Real-time audio level meters.
+            // These update ~30 times per second during recording.
             VStack(spacing: 12) {
                 VUMeterView(
                     level: state.systemAudioLevel,
@@ -41,8 +59,11 @@ struct PopoverContentView: View {
 
             Divider()
 
-            // Recording controls
+            // MARK: Recording Controls
+            // Start/stop button and source toggles.
+            // The closure is called when the button is tapped.
             RecordingControlsView(state: state) {
+                // Task creates an async context for await calls.
                 Task {
                     if state.isRecording {
                         await state.stopRecording()
@@ -50,6 +71,7 @@ struct PopoverContentView: View {
                         do {
                             try await state.startRecording()
                         } catch {
+                            // In production, you'd show an error alert here.
                             print("Recording error: \(error)")
                         }
                     }
@@ -58,22 +80,24 @@ struct PopoverContentView: View {
 
             Divider()
 
-            // Footer with quit button
+            // MARK: Footer
             HStack {
+                // Quit button terminates the app.
                 Button("Quit") {
                     NSApplication.shared.terminate(nil)
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.link)  // Looks like a hyperlink
                 .font(.caption)
 
                 Spacer()
 
+                // Version number
                 Text("v1.0")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
         }
-        .padding()
-        .frame(width: 280)
+        .padding()  // Add padding around all edges
+        .frame(width: 280)  // Fixed width for the popover
     }
 }
