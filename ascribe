@@ -1,0 +1,70 @@
+#!/bin/bash
+# ascribe - wrapper to run AudioScribe with proper permissions
+# Uses 'open' for microphone access, direct run for system-only
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_BUNDLE="$SCRIPT_DIR/AudioScribe.app"
+BINARY="$APP_BUNDLE/Contents/MacOS/audioscribe"
+
+if [ ! -d "$APP_BUNDLE" ]; then
+    echo "Error: App bundle not found at $APP_BUNDLE"
+    echo "Run: swift build -c release && cp .build/release/audioscribe AudioScribe.app/Contents/MacOS/"
+    exit 1
+fi
+
+# Show help
+if [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ $# -eq 0 ]; then
+    echo "ascribe - Audio recording with microphone and system audio support"
+    echo ""
+    echo "USAGE: ascribe [OPTIONS]"
+    echo ""
+    echo "OPTIONS:"
+    echo "  --duration <seconds>   Recording duration (default: 10)"
+    echo "  --output <file>        Output WAV file path (default: recording.wav)"
+    echo "  --mic-only             Record microphone only (no system audio)"
+    echo "  --system-only          Record system audio only (no microphone)"
+    echo ""
+    echo "EXAMPLES:"
+    echo "  ascribe --mic-only --duration 30 --output interview.wav"
+    echo "  ascribe --system-only --duration 60 --output meeting.wav"
+    echo "  ascribe --duration 60 --output both.wav"
+    echo ""
+    echo "Press Ctrl+C to stop recording early."
+    exit 0
+fi
+
+# Check if system-only mode (can run directly without 'open')
+SYSTEM_ONLY=false
+for arg in "$@"; do
+    if [ "$arg" = "--system-only" ]; then
+        SYSTEM_ONLY=true
+        break
+    fi
+done
+
+if [ "$SYSTEM_ONLY" = true ]; then
+    # System audio only - run directly
+    exec "$BINARY" "$@"
+else
+    # Needs microphone - must use 'open' for permission
+    cleanup() {
+        echo ""
+        echo "Stopping recording..."
+        pkill -f "AudioScribe.app/Contents/MacOS/audioscribe" 2>/dev/null
+        sleep 0.5
+        echo "Done."
+        exit 0
+    }
+    trap cleanup SIGINT SIGTERM
+
+    open "$APP_BUNDLE" --args "$@"
+    sleep 0.3
+
+    echo "Recording... (Ctrl+C to stop)"
+
+    while pgrep -f "AudioScribe.app/Contents/MacOS/audioscribe" >/dev/null 2>&1; do
+        sleep 0.5
+    done
+
+    echo "Done."
+fi
