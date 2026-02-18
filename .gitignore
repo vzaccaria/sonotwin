@@ -16,3 +16,4 @@ AudioScribeApp/AudioScribeApp.app/Contents/MacOS/AudioScribeApp
 
 # Claude session data
 .claude/
+SonoTwinApp/.build/arm64-apple-macosx/debug/ModuleCache

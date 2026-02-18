@@ -4,6 +4,8 @@
 
 A macOS menu bar application for recording system audio and microphone with real-time VU meters.
 
+![](Assets/snapshot.png)
+
 ## Features
 
 - **Menu Bar Integration** - Lives in the menu bar with a waveform icon, no Dock icon
