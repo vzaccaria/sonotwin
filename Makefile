@@ -1,4 +1,4 @@
-.PHONY: build debug run clean help
+.PHONY: build debug test run clean help
 
 # Default target
 all: build
@@ -11,6 +11,10 @@ build:
 # Debug build
 debug:
 	cd SonoTwinApp && swift build
+
+# Run Swift package tests
+test:
+	cd SonoTwinApp && swift test
 
 # Run menu bar app
 run: build
@@ -29,6 +33,7 @@ help:
 	@echo "Targets:"
 	@echo "  build   - Build menu bar app (release)"
 	@echo "  debug   - Build menu bar app (debug)"
+	@echo "  test    - Run Swift package tests"
 	@echo "  run     - Build and launch menu bar app"
 	@echo "  clean   - Remove all build artifacts"
 	@echo ""

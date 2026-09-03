@@ -30,6 +30,9 @@ From the project root:
 # Build
 make build
 
+# Test
+make test
+
 # Run
 make run
 # Or: open SonoTwinApp/SonoTwinApp.app

@@ -44,6 +44,9 @@ final class WAVWriter: @unchecked Sendable {
     /// Thread safety for writes.
     private let lock = NSLock()
 
+    /// Receives each PCM16 byte range only after it is written successfully.
+    private let sampleObserver: (@Sendable (Data) -> Void)?
+
     // MARK: - Initialization
 
     /// Create a WAV file and write the header.
@@ -52,19 +55,21 @@ final class WAVWriter: @unchecked Sendable {
     ///   - sampleRate: Samples per second (e.g., 48000)
     ///   - channels: Number of channels (1 = mono, 2 = stereo)
     ///   - bitsPerSample: Bits per sample (typically 16)
-    init(outputPath: URL, sampleRate: UInt32 = 48000, channels: UInt16 = 2, bitsPerSample: UInt16 = 16) throws {
+    init(
+        outputPath: URL,
+        sampleRate: UInt32 = 48000,
+        channels: UInt16 = 2,
+        bitsPerSample: UInt16 = 16,
+        sampleObserver: (@Sendable (Data) -> Void)? = nil
+    ) throws {
         self.filePath = outputPath
         self.sampleRate = sampleRate
         self.channels = channels
         self.bitsPerSample = bitsPerSample
+        self.sampleObserver = sampleObserver
 
-        // Create an empty file.
         FileManager.default.createFile(atPath: outputPath.path, contents: nil)
-
-        // Open for writing.
         self.fileHandle = try FileHandle(forWritingTo: outputPath)
-
-        // Write the WAV header (with placeholder sizes).
         try writeHeader()
     }
 
@@ -119,15 +124,20 @@ final class WAVWriter: @unchecked Sendable {
 
     /// Append raw audio bytes to the file.
     func appendSamples(_ samples: Data) {
-        lock.lock()
-        defer { lock.unlock() }
-
         do {
-            try fileHandle.write(contentsOf: samples)
-            dataSize += UInt32(samples.count)
+            try appendSamplesThrowing(samples)
         } catch {
             print("Error writing samples: \(error)")
         }
+    }
+
+    func appendSamplesThrowing(_ samples: Data) throws {
+        lock.lock()
+        defer { lock.unlock() }
+
+        try fileHandle.write(contentsOf: samples)
+        dataSize += UInt32(samples.count)
+        sampleObserver?(samples)
     }
 
     /// Convert AVAudioPCMBuffer to 16-bit PCM and append.
@@ -175,6 +185,7 @@ final class WAVWriter: @unchecked Sendable {
         // Location: offset 40, value: dataSize
         try fileHandle.seek(toOffset: 40)
         try fileHandle.write(contentsOf: withUnsafeBytes(of: dataSize.littleEndian) { Data($0) })
+        try fileHandle.synchronize()
 
         // Close the file.
         try fileHandle.close()

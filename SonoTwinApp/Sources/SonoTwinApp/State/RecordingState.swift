@@ -88,7 +88,8 @@ final class RecordingState {
             to: path,
             recordSystemAudio: recordSystemAudio,
             recordMicrophone: recordMicrophone,
-            duration: duration
+            duration: duration,
+            transcriptionPipeline: nil
         )
 
         isRecording = true

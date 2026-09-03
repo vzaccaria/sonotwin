@@ -25,6 +25,7 @@ actor RecordingEngine {
     private var micCapture: MicrophoneCapture?
     private var mixer: AudioMixer?
     private var writer: WAVWriter?
+    private var transcriptionChunkPipeline: TranscriptionChunkPipeline?
 
     // MARK: - Level Meters
     // One for each audio source. These calculate RMS/peak for VU meters.
@@ -60,14 +61,18 @@ actor RecordingEngine {
         to outputPath: URL,
         recordSystemAudio: Bool,
         recordMicrophone: Bool,
-        duration: TimeInterval?
+        duration: TimeInterval?,
+        transcriptionPipeline: TranscriptionChunkPipeline?
     ) async throws {
         guard !isRecording else { return }
 
-        // MARK: Create WAV Writer
-        // This opens the output file and writes the WAV header.
-        let newWriter = try WAVWriter(outputPath: outputPath)
+        // The observer only enqueues bytes; conversion and chunk I/O happen on
+        // TranscriptionChunkPipeline's bounded serial worker.
+        let newWriter = try WAVWriter(outputPath: outputPath) { samples in
+            _ = transcriptionPipeline?.append(samples)
+        }
         self.writer = newWriter
+        self.transcriptionChunkPipeline = transcriptionPipeline
         self.recordingSystemAudio = recordSystemAudio
         self.recordingMicrophone = recordMicrophone
 
@@ -157,11 +162,20 @@ actor RecordingEngine {
         // Finalize the WAV file (updates header with actual size).
         try? writer?.finalize()
 
+        if let transcriptionChunkPipeline {
+            do {
+                try await transcriptionChunkPipeline.finish()
+            } catch {
+                print("Error finalizing transcription chunks: \(error)")
+            }
+        }
+
         // Reset state for next recording.
         systemCapture = nil
         micCapture = nil
         mixer = nil
         writer = nil
+        transcriptionChunkPipeline = nil
         recordingSystemAudio = false
         recordingMicrophone = false
 

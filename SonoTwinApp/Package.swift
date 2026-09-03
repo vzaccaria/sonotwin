@@ -13,6 +13,11 @@ let package = Package(
         .executableTarget(
             name: "SonoTwinApp",
             path: "Sources/SonoTwinApp"
+        ),
+        .testTarget(
+            name: "SonoTwinAppTests",
+            dependencies: ["SonoTwinApp"],
+            path: "Tests/SonoTwinAppTests"
         )
     ]
 )
