@@ -17,3 +17,8 @@ AudioScribeApp/AudioScribeApp.app/Contents/MacOS/AudioScribeApp
 # Claude session data
 .claude/
 SonoTwinApp/.build
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "audioscribe",
+  "project_id": "976b83eb-28fc-472f-8639-de8d9764b697"
+}
