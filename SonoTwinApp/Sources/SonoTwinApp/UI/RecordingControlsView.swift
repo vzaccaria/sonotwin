@@ -47,41 +47,45 @@ struct RecordingControlsView: View {
             // Only shown while recording.
             if state.isRecording {
                 HStack {
-                    // Pulsing red dot (animation would need @State, simplified here)
-                    Circle()
-                        .fill(.red)
-                        .frame(width: 8, height: 8)
-                        .opacity(pulseOpacity)
-
-                    // Elapsed time in monospace font for stable width
-                    Text(state.formatElapsedTime())
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.primary)
+                    if state.isStopping {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Finalizing recording and transcript…")
+                            .font(.caption)
+                    } else {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 8, height: 8)
+                            .opacity(pulseOpacity)
+                        Text(state.formatElapsedTime())
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(.primary)
+                    }
                 }
             }
 
             // MARK: Start/Stop Button
             Button(action: onStartStop) {
                 HStack {
-                    // SF Symbol changes based on recording state
-                    Image(systemName: state.isRecording ? "stop.fill" : "record.circle")
-                    Text(state.isRecording ? "Stop Recording" : "Start Recording")
+                    if state.isStopping {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Finishing…")
+                    } else {
+                        Image(systemName: state.isRecording ? "stop.fill" : "record.circle")
+                        Text(state.isRecording ? "Stop Recording" : "Start Recording")
+                    }
                 }
                 .frame(maxWidth: .infinity)  // Fill available width
             }
             .buttonStyle(.borderedProminent)  // Filled, prominent button
             .tint(state.isRecording ? .red : .blue)  // Red when recording, blue otherwise
-            .disabled(!canRecord)  // Disabled if no sources selected
+            .disabled(!canRecord || state.isStopping)
             .controlSize(.large)  // Bigger button
 
             // MARK: Output Path
-            // Show filename while recording.
-            if state.isRecording, let path = state.outputPath {
-                Text(path.lastPathComponent)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)  // Single line only
-                    .truncationMode(.middle)  // "longfilen...ame.wav"
+            if let path = state.outputPath {
+                CopyablePathRow(label: "Recording", url: path)
             }
         }
     }

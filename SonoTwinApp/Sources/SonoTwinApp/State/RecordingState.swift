@@ -13,11 +13,13 @@ import AVFoundation
 @Observable
 @MainActor
 final class RecordingState {
+    private let userDefaults: UserDefaults
 
     // MARK: - Recording Status
     // private(set) means: readable from outside, but only writable from inside this class.
     // This pattern exposes state for reading while controlling mutations.
 
+    private(set) var isStopping = false
     private(set) var isRecording = false
     private(set) var elapsedTime: TimeInterval = 0
     private(set) var outputPath: URL?
@@ -39,6 +41,21 @@ final class RecordingState {
     var recordMicrophone = true
     var duration: TimeInterval? = nil  // nil means "record until stopped"
 
+    var transcriptionEnabled: Bool {
+        didSet { userDefaults.set(transcriptionEnabled, forKey: "transcriptionEnabled") }
+    }
+    var whisperExecutablePath: String {
+        didSet { userDefaults.set(whisperExecutablePath, forKey: "whisperExecutablePath") }
+    }
+    var whisperModelPath: String {
+        didSet { userDefaults.set(whisperModelPath, forKey: "whisperModelPath") }
+    }
+    var transcriptionLanguage: String {
+        didSet { userDefaults.set(transcriptionLanguage, forKey: "transcriptionLanguage") }
+    }
+    private(set) var transcriptionSnapshot = TranscriptionRuntime.Snapshot.idle
+    private(set) var transcriptionConfigurationError: String?
+
     // MARK: - Default Output Directory
     // Computed property - calculated fresh each time it's accessed.
     // Uses the user's Documents folder as the default save location.
@@ -52,6 +69,8 @@ final class RecordingState {
 
     private var recordingEngine: RecordingEngine?
     private var elapsedTimer: Timer?
+    private var transcriptionRuntime: TranscriptionRuntime?
+    private var sessionTranscriptionActive = false
     private var startTime: Date?
 
     // MARK: - Permission Manager
@@ -60,12 +79,41 @@ final class RecordingState {
 
     let permissionManager = PermissionManager()
 
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        let defaults = userDefaults
+        transcriptionEnabled = defaults.object(forKey: "transcriptionEnabled") as? Bool ?? false
+        whisperExecutablePath = defaults.string(forKey: "whisperExecutablePath")
+            ?? Self.discoverWhisperExecutable()
+        whisperModelPath = defaults.string(forKey: "whisperModelPath")
+            ?? Self.discoverWhisperModel()
+        transcriptionLanguage = defaults.string(forKey: "transcriptionLanguage") ?? "auto"
+    }
+
     // MARK: - Methods
 
     /// Called by AppDelegate to inject the recording engine dependency.
     /// This pattern (dependency injection) makes testing easier.
     func setRecordingEngine(_ engine: RecordingEngine) {
         self.recordingEngine = engine
+    }
+
+    func setTranscriptionRuntime(_ runtime: TranscriptionRuntime) {
+        transcriptionRuntime = runtime
+    }
+
+    func updateTranscriptionStatus(_ snapshot: TranscriptionRuntime.Snapshot) {
+        transcriptionSnapshot = snapshot
+    }
+
+    func checkTranscriptionServer() async {
+        guard !isRecording, let runtime = transcriptionRuntime else { return }
+        do {
+            transcriptionConfigurationError = nil
+            try await runtime.checkServer(settings: try transcriptionSettings())
+        } catch {
+            transcriptionConfigurationError = error.localizedDescription
+        }
     }
 
     /// Start recording to the given path, or auto-generate a timestamped filename.
@@ -83,14 +131,41 @@ final class RecordingState {
         let path = outputPath ?? generateOutputPath()
         self.outputPath = path
 
-        // 'try await' - wait for async operation that might fail.
-        try await engine.startRecording(
-            to: path,
-            recordSystemAudio: recordSystemAudio,
-            recordMicrophone: recordMicrophone,
-            duration: duration,
-            transcriptionPipelines: nil
-        )
+        var transcriptionPipelines: SourceTranscriptionPipelines?
+        if transcriptionEnabled, let runtime = transcriptionRuntime {
+            do {
+                transcriptionConfigurationError = nil
+                var sources: Set<TranscriptionSource> = []
+                if recordSystemAudio { sources.insert(.system) }
+                if recordMicrophone { sources.insert(.microphone) }
+                transcriptionPipelines = try await runtime.startSession(
+                    recordingURL: path,
+                    sources: sources,
+                    settings: try transcriptionSettings()
+                )
+                sessionTranscriptionActive = true
+            } catch {
+                transcriptionConfigurationError = error.localizedDescription
+                sessionTranscriptionActive = false
+            }
+        }
+
+        do {
+            try await engine.startRecording(
+                to: path,
+                recordSystemAudio: recordSystemAudio,
+                recordMicrophone: recordMicrophone,
+                duration: duration,
+                transcriptionPipelines: transcriptionPipelines
+            )
+        } catch {
+            if let transcriptionPipelines {
+                try? await transcriptionPipelines.finish()
+                await transcriptionRuntime?.finishSession()
+                sessionTranscriptionActive = false
+            }
+            throw error
+        }
 
         isRecording = true
         startTime = Date()
@@ -109,13 +184,19 @@ final class RecordingState {
 
     /// Stop the current recording and finalize the output file.
     func stopRecording() async {
-        guard isRecording else { return }
+        guard isRecording, !isStopping else { return }
+        isStopping = true
+        defer { isStopping = false }
 
         // Invalidate (stop) the timer and release it.
         elapsedTimer?.invalidate()
         elapsedTimer = nil
 
         await recordingEngine?.stopRecording()
+        if sessionTranscriptionActive {
+            await transcriptionRuntime?.finishSession()
+            sessionTranscriptionActive = false
+        }
 
         // Reset state for next recording.
         isRecording = false
@@ -137,6 +218,18 @@ final class RecordingState {
         microphonePeak = LevelMeter.dbToNormalized(micPeak > 0 ? 20 * log10(micPeak) : LevelMeter.minDB)
     }
 
+    var transcriptionDisplayState: TranscriptionRuntime.State {
+        transcriptionConfigurationError == nil ? transcriptionSnapshot.state : .failed
+    }
+
+    var transcriptionError: String? {
+        transcriptionConfigurationError ?? transcriptionSnapshot.error
+    }
+
+    func shutdownTranscription() async {
+        await transcriptionRuntime?.shutdown()
+    }
+
     // MARK: - Private Helpers
 
     private func updateElapsedTime() {
@@ -149,6 +242,69 @@ final class RecordingState {
                 await stopRecording()
             }
         }
+    }
+
+    private func transcriptionSettings() throws -> TranscriptionRuntime.Settings {
+        let executable = whisperExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = whisperModelPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let language = transcriptionLanguage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !executable.isEmpty else {
+            throw TranscriptionConfigurationError.missingExecutable
+        }
+        guard !model.isEmpty else {
+            throw TranscriptionConfigurationError.missingModel
+        }
+        guard !language.isEmpty else {
+            throw TranscriptionConfigurationError.missingLanguage
+        }
+        return .init(
+            executableURL: URL(fileURLWithPath: NSString(string: executable).expandingTildeInPath),
+            modelURL: URL(fileURLWithPath: NSString(string: model).expandingTildeInPath),
+            requestedLanguage: language
+        )
+    }
+
+    private static func discoverWhisperExecutable() -> String {
+        if let configured = ProcessInfo.processInfo.environment["SONOTWIN_WHISPER_SERVER"],
+           !configured.isEmpty {
+            return configured
+        }
+
+        let pathCandidates = ProcessInfo.processInfo.environment["PATH", default: ""]
+            .split(separator: ":")
+            .map { String($0) + "/whisper-server" }
+        let candidates = pathCandidates + [
+            "/opt/homebrew/bin/whisper-server",
+            "/usr/local/bin/whisper-server"
+        ]
+        return candidates.first {
+            FileManager.default.isExecutableFile(atPath: $0)
+        } ?? ""
+    }
+
+    private static func discoverWhisperModel() -> String {
+        if let configured = ProcessInfo.processInfo.environment["SONOTWIN_WHISPER_MODEL"],
+           !configured.isEmpty {
+            return configured
+        }
+
+        let documents = FileManager.default.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        ).first
+        guard let directory = documents?.appendingPathComponent(
+            "WhisperCppModels",
+            isDirectory: true
+        ), let entries = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        ) else {
+            return ""
+        }
+        let models = entries.filter { $0.pathExtension.lowercased() == "bin" }
+        return models.first {
+            $0.lastPathComponent == "ggml-large-v3-turbo.bin"
+        }?.path ?? models.first?.path ?? ""
     }
 
     /// Generate a filename like "recording_2024-01-15_14-30-45.wav"
@@ -166,5 +322,22 @@ final class RecordingState {
         // truncatingRemainder is Swift's modulo for floating point.
         let tenths = Int((elapsedTime.truncatingRemainder(dividingBy: 1)) * 10)
         return String(format: "%02d:%02d.%d", minutes, seconds, tenths)
+    }
+}
+
+private enum TranscriptionConfigurationError: Error, LocalizedError {
+    case missingExecutable
+    case missingModel
+    case missingLanguage
+
+    var errorDescription: String? {
+        switch self {
+        case .missingExecutable:
+            return "Choose a whisper-server executable"
+        case .missingModel:
+            return "Choose a Whisper model"
+        case .missingLanguage:
+            return "Enter a language code or auto"
+        }
     }
 }

@@ -14,6 +14,7 @@ struct PopoverContentView: View {
     @Bindable var state: RecordingState
 
     var body: some View {
+        ScrollView {
         // VStack stacks children vertically.
         // spacing: 16 puts 16 points between each child.
         VStack(spacing: 16) {
@@ -80,6 +81,11 @@ struct PopoverContentView: View {
 
             Divider()
 
+            // MARK: Transcription
+            TranscriptionStatusView(state: state)
+
+            Divider()
+
             // MARK: Footer
             HStack {
                 // Quit button terminates the app.
@@ -98,6 +104,7 @@ struct PopoverContentView: View {
             }
         }
         .padding()  // Add padding around all edges
-        .frame(width: 280)  // Fixed width for the popover
+        }
+        .frame(width: 360, height: 620)
     }
 }

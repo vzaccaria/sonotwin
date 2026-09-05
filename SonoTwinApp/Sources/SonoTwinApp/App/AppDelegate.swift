@@ -51,16 +51,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // RecordingEngine handles the actual audio capture.
         let state = RecordingState()
         let engine = RecordingEngine()
+        let transcriptionRuntime = TranscriptionRuntime { [weak state] snapshot in
+            Task { @MainActor in
+                state?.updateTranscriptionStatus(snapshot)
+            }
+        }
 
         self.recordingState = state
         self.recordingEngine = engine
+        state.setRecordingEngine(engine)
+        state.setTranscriptionRuntime(transcriptionRuntime)
 
         // MARK: Connect Engine to State
         // Task creates an asynchronous context for async/await code.
         // @MainActor ensures this runs on the main thread (required for UI).
         Task { @MainActor in
-            state.setRecordingEngine(engine)
-
             // Set up a callback to receive audio level updates.
             // [weak state] prevents a retain cycle (memory leak).
             // The callback receives 4 floats: system RMS, system peak, mic RMS, mic peak.
@@ -75,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // MARK: Create Popover
         // The popover displays our SwiftUI UI when the menu bar icon is clicked.
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 280, height: 400)
+        popover.contentSize = NSSize(width: 360, height: 620)
         // .transient means clicking outside closes the popover automatically.
         popover.behavior = .transient
         popover.delegate = self
@@ -97,17 +102,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    // Called when the app is about to quit.
-    // Clean up resources here.
-    func applicationWillTerminate(_ notification: Notification) {
-        socketServer?.stop()
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let state = recordingState else { return .terminateNow }
 
-        // Stop any ongoing recording to ensure the file is properly finalized.
-        if let state = recordingState, state.isRecording {
-            Task {
+        Task { @MainActor in
+            if state.isRecording {
                 await state.stopRecording()
             }
+            await state.shutdownTranscription()
+            sender.reply(toApplicationShouldTerminate: true)
         }
+        return .terminateLater
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        socketServer?.stop()
     }
 
     // MARK: - Actions

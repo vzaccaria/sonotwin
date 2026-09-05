@@ -1,16 +1,10 @@
 #!/bin/bash
-#
-# sonotwin-ctl - CLI controller for SonoTwin menu bar app
-#
-# Usage:
-#   sonotwin-ctl start [--output FILE] [--duration SECONDS] [--system-only] [--mic-only]
-#   sonotwin-ctl stop
-#   sonotwin-ctl status
-#
+# sonotwin-ctl - CLI controller for the SonoTwin menu bar app
 
-SOCKET="/tmp/sonotwin.sock"
+SOCKET="${SONOTWIN_SOCKET:-/tmp/sonotwin.sock}"
+PYTHON="${PYTHON:-/usr/bin/python3}"
+NETCAT="${NETCAT:-/usr/bin/nc}"
 
-# Check if socket exists
 check_socket() {
     if [ ! -S "$SOCKET" ]; then
         echo "Error: SonoTwin app is not running"
@@ -19,20 +13,77 @@ check_socket() {
     fi
 }
 
-# Send command and get response
 send_command() {
     local cmd="$1"
-    echo "$cmd" | nc -U "$SOCKET" 2>/dev/null
+    echo "$cmd" | "$NETCAT" -U "$SOCKET" 2>/dev/null
 }
 
-# Parse JSON response
+require_response() {
+    if [ -z "$1" ]; then
+        echo "Error: SonoTwin did not return a response" >&2
+        echo "The socket may be stale; restart the app" >&2
+        exit 1
+    fi
+}
+
 parse_response() {
     local response="$1"
     local field="$2"
-    echo "$response" | grep -o "\"$field\":[^,}]*" | cut -d: -f2 | tr -d '"' | tr -d ' '
+    "$PYTHON" -c '
+import json, sys
+try:
+    value = json.load(sys.stdin)
+except (json.JSONDecodeError, OSError):
+    print("null")
+    raise SystemExit
+for key in sys.argv[1].split("."):
+    value = value.get(key) if isinstance(value, dict) else None
+    if value is None:
+        break
+if value is None:
+    print("null")
+elif isinstance(value, bool):
+    print("true" if value else "false")
+else:
+    print(value)
+' "$field" <<< "$response"
 }
 
-# Format status output
+format_transcription() {
+    local response="$1"
+    local enabled=$(parse_response "$response" "transcription.enabled")
+    local state=$(parse_response "$response" "transcription.state")
+    local server=$(parse_response "$response" "transcription.serverState")
+    local healthy=$(parse_response "$response" "transcription.serverHealthy")
+    local backlog=$(parse_response "$response" "transcription.backlog")
+    local lag=$(parse_response "$response" "transcription.lagMilliseconds")
+    local sequence=$(parse_response "$response" "transcription.lastCompletedSequence")
+    local transcript=$(parse_response "$response" "transcription.transcriptPath")
+    local bundle=$(parse_response "$response" "transcription.bundlePath")
+    local error=$(parse_response "$response" "transcription.error")
+
+    echo "Transcription: $state (enabled: $enabled)"
+    echo "Server: $server (healthy: $healthy)"
+    if [ "$backlog" != "null" ] && [ "$backlog" -gt 0 ] 2>/dev/null; then
+        echo "Backlog: $backlog chunks"
+    fi
+    if [ "$lag" != "null" ] && [ "$lag" -gt 0 ] 2>/dev/null; then
+        printf "Lag: %.1fs\n" "$("$PYTHON" -c "print($lag / 1000)")"
+    fi
+    if [ "$sequence" != "null" ]; then
+        echo "Last transcript sequence: $sequence"
+    fi
+    if [ "$transcript" != "null" ]; then
+        echo "Transcript: $transcript"
+    fi
+    if [ "$bundle" != "null" ]; then
+        echo "Session: $bundle"
+    fi
+    if [ "$error" != "null" ]; then
+        echo "Transcription error: $error"
+    fi
+}
+
 format_status() {
     local response="$1"
     local recording=$(parse_response "$response" "recording")
@@ -41,25 +92,24 @@ format_status() {
 
     if [ "$recording" = "true" ]; then
         echo "Status: Recording"
-        if [ -n "$elapsed" ] && [ "$elapsed" != "null" ]; then
+        if [ "$elapsed" != "null" ]; then
             local mins=$((elapsed / 60))
             local secs=$((elapsed % 60))
             printf "Elapsed: %02d:%02d\n" "$mins" "$secs"
         fi
-        if [ -n "$path" ] && [ "$path" != "null" ]; then
-            echo "Output: $path"
-        fi
     else
         echo "Status: Not recording"
     fi
+    if [ "$path" != "null" ]; then
+        echo "Output: $path"
+    fi
+    format_transcription "$response"
 }
 
 case "$1" in
     start)
         check_socket
         shift
-
-        # Build JSON command
         json='{"action":"start"'
 
         while [ $# -gt 0 ]; do
@@ -80,6 +130,26 @@ case "$1" in
                     json="$json,\"systemAudio\":false,\"microphone\":true"
                     shift
                     ;;
+                --transcribe)
+                    json="$json,\"transcription\":true"
+                    shift
+                    ;;
+                --no-transcription)
+                    json="$json,\"transcription\":false"
+                    shift
+                    ;;
+                --whisper-server)
+                    json="$json,\"whisperExecutable\":\"$2\""
+                    shift 2
+                    ;;
+                --whisper-model)
+                    json="$json,\"whisperModel\":\"$2\""
+                    shift 2
+                    ;;
+                --language)
+                    json="$json,\"language\":\"$2\""
+                    shift 2
+                    ;;
                 *)
                     echo "Unknown option: $1"
                     exit 1
@@ -87,23 +157,16 @@ case "$1" in
             esac
         done
 
-        json="$json}"
-
-        response=$(send_command "$json")
+        response=$(send_command "$json}")
+        require_response "$response"
         success=$(parse_response "$response" "success")
         error=$(parse_response "$response" "error")
-
         if [ "$success" = "true" ]; then
-            path=$(parse_response "$response" "outputPath")
             echo "Recording started"
-            if [ -n "$path" ] && [ "$path" != "null" ]; then
-                echo "Output: $path"
-            fi
+            format_status "$response"
         else
             echo "Failed to start recording"
-            if [ -n "$error" ] && [ "$error" != "null" ]; then
-                echo "Error: $error"
-            fi
+            [ "$error" != "null" ] && echo "Error: $error"
             exit 1
         fi
         ;;
@@ -111,26 +174,15 @@ case "$1" in
     stop)
         check_socket
         response=$(send_command '{"action":"stop"}')
+        require_response "$response"
         success=$(parse_response "$response" "success")
         error=$(parse_response "$response" "error")
-
         if [ "$success" = "true" ]; then
-            elapsed=$(parse_response "$response" "elapsedSeconds")
-            path=$(parse_response "$response" "outputPath")
             echo "Recording stopped"
-            if [ -n "$elapsed" ] && [ "$elapsed" != "null" ]; then
-                mins=$((elapsed / 60))
-                secs=$((elapsed % 60))
-                printf "Duration: %02d:%02d\n" "$mins" "$secs"
-            fi
-            if [ -n "$path" ] && [ "$path" != "null" ]; then
-                echo "Saved to: $path"
-            fi
+            format_status "$response"
         else
             echo "Failed to stop recording"
-            if [ -n "$error" ] && [ "$error" != "null" ]; then
-                echo "Error: $error"
-            fi
+            [ "$error" != "null" ] && echo "Error: $error"
             exit 1
         fi
         ;;
@@ -138,7 +190,17 @@ case "$1" in
     status)
         check_socket
         response=$(send_command '{"action":"status"}')
+        require_response "$response"
         format_status "$response"
+        ;;
+
+    check-transcription)
+        check_socket
+        response=$(send_command '{"action":"checkTranscription"}')
+        require_response "$response"
+        success=$(parse_response "$response" "success")
+        format_transcription "$response"
+        [ "$success" = "true" ] || exit 1
         ;;
 
     *)
@@ -147,19 +209,19 @@ case "$1" in
         echo "Usage:"
         echo "  sonotwin-ctl start [OPTIONS]   Start recording"
         echo "  sonotwin-ctl stop              Stop recording"
-        echo "  sonotwin-ctl status            Show recording status"
+        echo "  sonotwin-ctl status            Show recording and transcription status"
+        echo "  sonotwin-ctl check-transcription  Start and health-check whisper-server"
         echo ""
         echo "Start options:"
-        echo "  --output, -o FILE     Output file path"
-        echo "  --duration, -d SECS   Recording duration in seconds"
-        echo "  --system-only         Record system audio only"
-        echo "  --mic-only            Record microphone only"
-        echo ""
-        echo "Examples:"
-        echo "  sonotwin-ctl start --output meeting.wav"
-        echo "  sonotwin-ctl start --system-only --duration 60"
-        echo "  sonotwin-ctl status"
-        echo "  sonotwin-ctl stop"
+        echo "  --output, -o FILE       Output WAV path"
+        echo "  --duration, -d SECS     Recording duration in seconds"
+        echo "  --system-only           Record system audio only"
+        echo "  --mic-only              Record microphone only"
+        echo "  --transcribe             Enable live transcription"
+        echo "  --no-transcription       Disable live transcription"
+        echo "  --whisper-server PATH    Configure whisper-server executable"
+        echo "  --whisper-model PATH     Configure Whisper model"
+        echo "  --language CODE          Language code or auto"
         exit 1
         ;;
 esac

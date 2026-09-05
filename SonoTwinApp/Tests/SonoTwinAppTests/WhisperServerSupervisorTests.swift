@@ -268,7 +268,7 @@ private final class SupervisorStateCollector: @unchecked Sendable {
     }
 }
 
-private struct FakeWhisperFixture {
+struct FakeWhisperFixture {
     let root: URL
     let executableURL: URL
     let modelURL: URL

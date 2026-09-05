@@ -5,9 +5,11 @@
 > were created through conversational prompts without manual coding.
 
 A macOS menu bar application for recording system audio and microphone with
-real-time VU meters.
+real-time VU meters and optional local live transcription.
 
-Recordings are saved in `~/Documents` by default
+Recordings are saved in `~/Documents` by default. A transcribed recording also
+creates a sibling `<recording>.sonotwin/` session containing `transcript.txt`,
+`transcript.jsonl`, and `session.json`.
 
 ![snapshot](Assets/snapshot.png)
 
@@ -21,6 +23,7 @@ Recordings are saved in `~/Documents` by default
   permissions
 - **CLI Control** - Control recordings via `sonotwin-ctl` command-line tool
 - **Mixed Recording** - Record system audio, microphone, or both simultaneously
+- **Local Transcription** - Supervises `whisper-server`, keeps microphone and system speech source-tagged, and exposes health, backlog, errors, and copyable output paths
 
 ## Build & Run
 
@@ -46,12 +49,16 @@ While the app is running, use `sonotwin-ctl` from the project root:
 # Check status
 ./sonotwin-ctl status
 
+# Start and health-check the configured whisper-server
+./sonotwin-ctl check-transcription
+
 # Start recording
 ./sonotwin-ctl start --output ~/Desktop/recording.wav
 
 # Start with options
 ./sonotwin-ctl start --system-only --duration 60 --output meeting.wav
 ./sonotwin-ctl start --mic-only --output voice.wav
+./sonotwin-ctl start --transcribe --language auto --output meeting.wav
 
 # Stop recording
 ./sonotwin-ctl stop
@@ -132,9 +139,9 @@ SonoTwinApp/Sources/SonoTwinApp/
 
 **RecordingState** (`@Observable`)
 
-- Holds all UI-visible state: `isRecording`, `elapsedTime`, audio levels
-- Holds settings: `recordSystemAudio`, `recordMicrophone`, `duration`
-- Provides `startRecording()` / `stopRecording()` methods
+- Holds all UI-visible recording and transcription state
+- Persists audio-source, transcription enablement, server/model path, and language settings
+- Coordinates recording, server health checks, session output, and graceful draining
 
 **PermissionManager** (`@Observable`)
 
@@ -160,6 +167,12 @@ SonoTwinApp/Sources/SonoTwinApp/
 - Large Start/Stop button with recording indicator
 - Elapsed time display during recording
 
+**TranscriptionStatusView**
+
+- Enables local transcription and edits the executable, model, and language settings
+- Shows server health, lifecycle, backlog, lag, last sequence, and actionable errors
+- Provides selectable paths plus Copy and Show in Finder actions for recording and transcript outputs
+
 **PermissionStatusView**
 
 - Green/yellow/red circles for each permission
@@ -175,23 +188,26 @@ SonoTwinApp/Sources/SonoTwinApp/
 
 **CommandHandler**
 
-- Parses JSON commands: `{"action": "start|stop|status", ...}`
-- Returns JSON responses: `{"success": true, "recording": false, ...}`
-- Interacts with `RecordingState` on MainActor
+- Parses recording commands plus `checkTranscription` and transcription configuration
+- Returns recording state and a nested transcription status from the same observable snapshot used by the UI
+- Interacts with `RecordingState` on `MainActor`
 
 ## JSON Protocol
 
 ### Commands
 
 ```json
-// Start recording
-{"action": "start", "output": "/path/to/file.wav", "duration": 60, "systemAudio": true, "microphone": false}
+// Start recording with transcription
+{"action": "start", "output": "/path/to/file.wav", "systemAudio": true, "microphone": true, "transcription": true, "whisperExecutable": "/path/to/whisper-server", "whisperModel": "/path/to/model.bin", "language": "auto"}
 
 // Stop recording
 {"action": "stop"}
 
-// Get status
+// Get recording and transcription status
 {"action": "status"}
+
+// Start the configured server and verify /health
+{"action": "checkTranscription"}
 ```
 
 ### Responses
@@ -202,7 +218,20 @@ SonoTwinApp/Sources/SonoTwinApp/
   "recording": true,
   "elapsedSeconds": 42,
   "outputPath": "/path/to/file.wav",
-  "error": null
+  "error": null,
+  "transcription": {
+    "enabled": true,
+    "state": "active",
+    "serverState": "ready",
+    "serverHealthy": true,
+    "bundlePath": "/path/to/file.sonotwin",
+    "transcriptPath": "/path/to/file.sonotwin/transcript.txt",
+    "jsonlPath": "/path/to/file.sonotwin/transcript.jsonl",
+    "lastCompletedSequence": 12,
+    "backlog": 1,
+    "lagMilliseconds": 3500,
+    "error": null
+  }
 }
 ```
 
@@ -210,8 +239,7 @@ SonoTwinApp/Sources/SonoTwinApp/
 
 - **@Observable** (macOS 14+) - Modern observation for SwiftUI
 - **@MainActor** - Ensures UI updates happen on main thread
-- **actor** - Thread-safe state isolation (considered but not used due to Timer
-  complexity)
+- **actor** - Serializes recording, server supervision, inference, and transcript commits without blocking capture callbacks
 - **async/await** - Asynchronous permission requests and audio capture
 - **NSLock** - Thread synchronization for audio callbacks
 - **Accelerate/vDSP** - SIMD-optimized audio level calculation
