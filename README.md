@@ -63,24 +63,25 @@ While the app is running, use `sonotwin-ctl` from the project root:
 ./sonotwin-ctl start --mic-only --output voice.wav
 ./sonotwin-ctl start --transcribe --language auto --output meeting.wav
 
-# Stop recording
+# Stop and finalize the WAV; transcript drain continues in the background
 ./sonotwin-ctl stop
 ```
 
 ## Contextual Copilot
 
-The global skill is installed at `~/.agents/skills/contextual-copilot`. With
-SonoTwin running, enter `?` in the agent prompt to obtain an on-demand recap
-and simpler explanation of the latest finalized transcript records. Add a
-focus or local document path to interpret the same speech against extra
-context, for example `? rispetto a @slides.pdf`.
-The initial response offers specific follow-ups for earlier context, an
-alternative explanation, document comparison, web research, or
-state-of-the-art research; it performs no background model polling.
+The global skill is installed at `~/.agents/skills/contextual-copilot`. A bare
+`?` has no transcript context by default and never discovers one from app
+status. Start a transcript through the skill or provide a
+`transcript.jsonl`/`.sonotwin` path to select it for the current conversation.
+
+With a transcript selected, `?` reads one finalized 60-second JSONL snapshot
+and answers directly with compact provenance. Add a focus or local document
+path when needed, for example `? rispetto a @slides.pdf`. Context expansion,
+alternative explanations, document comparison, and web research happen only
+when explicitly requested.
 
 Explicit agent requests can start SonoTwin recording with live transcription,
-stop and drain the current session, or inspect app status. A bare `?` is always
-read-only.
+stop recording, or inspect app status. A bare `?` is always read-only.
 
 The `meetings` skill checks the selected WAV for a matching completed
 `.sonotwin` session and reuses its transcript before considering
@@ -163,7 +164,7 @@ SonoTwinApp/Sources/SonoTwinApp/
 
 - Holds all UI-visible recording and transcription state
 - Persists audio-source, transcription enablement, server/model path, and language settings
-- Coordinates recording, server health checks, session output, and graceful draining
+- Coordinates recording finalization, server health, session output, and background transcript draining
 
 **PermissionManager** (`@Observable`)
 
@@ -256,6 +257,12 @@ SonoTwinApp/Sources/SonoTwinApp/
   }
 }
 ```
+
+A successful `stop` response has `"recording": false` as soon as the WAV is
+finalized. Its transcription state may remain `"draining"` with a non-zero
+backlog until the independent transcript task reaches `"complete"` or
+`"failed"`. A new transcription-enabled recording is rejected while that drain
+is active; audio-only recording remains available.
 
 ## Key Swift Concepts Used
 

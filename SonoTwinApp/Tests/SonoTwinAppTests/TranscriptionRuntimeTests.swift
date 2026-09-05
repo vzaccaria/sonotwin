@@ -43,6 +43,21 @@ struct TranscriptionRuntimeTests {
         )
 
         try await pipelines.finish()
+        let draining = await runtime.beginFinishingSession()
+        #expect(draining.state == .draining)
+        do {
+            _ = try await runtime.startSession(
+                recordingURL: fixture.root.appendingPathComponent("too-soon.wav"),
+                sources: [.microphone],
+                settings: settings
+            )
+            Issue.record("a new session must not replace a draining session")
+        } catch {
+            #expect(
+                error as? TranscriptionRuntime.RuntimeError
+                    == .sessionAlreadyActive
+            )
+        }
         await runtime.finishSession()
 
         let snapshot = await runtime.snapshot()

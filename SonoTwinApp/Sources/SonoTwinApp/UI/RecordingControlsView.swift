@@ -50,7 +50,7 @@ struct RecordingControlsView: View {
                     if state.isStopping {
                         ProgressView()
                             .controlSize(.small)
-                        Text("Finalizing recording and transcript…")
+                        Text("Finalizing recording…")
                             .font(.caption)
                     } else {
                         Circle()
@@ -80,7 +80,11 @@ struct RecordingControlsView: View {
             }
             .buttonStyle(.borderedProminent)  // Filled, prominent button
             .tint(state.isRecording ? .red : .blue)  // Red when recording, blue otherwise
-            .disabled(!canRecord || state.isStopping)
+            .disabled(
+                !canRecord
+                    || state.isStopping
+                    || (!state.isRecording && !state.canStartRecording)
+            )
             .controlSize(.large)  // Bigger button
 
             // MARK: Output Path

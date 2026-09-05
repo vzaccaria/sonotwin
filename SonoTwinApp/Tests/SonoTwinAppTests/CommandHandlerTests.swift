@@ -63,6 +63,81 @@ struct CommandHandlerTests {
     }
 
     @Test @MainActor
+    func stopPublishesFinalizedRecordingWhileTranscriptKeepsDraining() async throws {
+        let defaults = temporaryDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName(defaults)) }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CommandHandlerStopTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pipelines = try SourceTranscriptionPipelines(
+            configuration: .init(
+                rootDirectory: root.appendingPathComponent("chunks"),
+                sources: [.microphone]
+            )
+        )
+        let engine = RecordingEngineStub()
+        let runtime = TranscriptionRuntimeStub(
+            pipelines: pipelines,
+            snapshot: .init(
+                state: .draining,
+                serverState: .ready,
+                serverHealthy: true,
+                bundleURL: root.appendingPathComponent("meeting.sonotwin"),
+                transcriptURL: root.appendingPathComponent("meeting.sonotwin/transcript.txt"),
+                jsonlURL: root.appendingPathComponent("meeting.sonotwin/transcript.jsonl"),
+                lastCompletedSequence: 7,
+                backlog: 4,
+                lagMilliseconds: 20_000,
+                error: nil
+            )
+        )
+        let state = RecordingState(userDefaults: defaults)
+        state.transcriptionEnabled = true
+        state.whisperExecutablePath = "/tmp/fake-whisper-server"
+        state.whisperModelPath = "/tmp/fake-model.bin"
+        state.setRecordingEngine(engine)
+        state.setTranscriptionRuntime(runtime)
+        let output = root.appendingPathComponent("meeting.wav")
+        try await state.startRecording(outputPath: output)
+
+        let stopData = await CommandHandler(recordingState: state).handle(
+            Data(#"{"action":"stop"}"#.utf8)
+        )
+        let stopResponse = try JSONDecoder().decode(
+            CommandHandler.Response.self,
+            from: stopData
+        )
+
+        #expect(stopResponse.success)
+        #expect(!stopResponse.recording)
+        #expect(stopResponse.outputPath == output.path)
+        #expect(stopResponse.transcription.state == .draining)
+        #expect(stopResponse.transcription.backlog == 4)
+        #expect(!state.isRecording)
+        #expect(!state.isStopping)
+        #expect(!state.canStartRecording)
+        let engineCountsAfterStop = await engine.counts()
+        let runtimeCountsAfterStop = await runtime.counts()
+        #expect(engineCountsAfterStop == .init(starts: 1, stops: 1))
+        #expect(runtimeCountsAfterStop == .init(starts: 1, begins: 1, finishes: 0))
+
+        let restartData = await CommandHandler(recordingState: state).handle(
+            Data(#"{"action":"start","transcription":true}"#.utf8)
+        )
+        let restartResponse = try JSONDecoder().decode(
+            CommandHandler.Response.self,
+            from: restartData
+        )
+        #expect(!restartResponse.success)
+        #expect(restartResponse.error == "Previous transcript is still finishing")
+        let engineCountsAfterRestart = await engine.counts()
+        #expect(engineCountsAfterRestart.starts == 1)
+
+        try await pipelines.finish()
+        await state.shutdownTranscription()
+    }
+
+    @Test @MainActor
     func freshSettingsDefaultToAutomaticLanguageDetection() {
         let defaults = temporaryDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName(defaults)) }
@@ -94,5 +169,81 @@ struct CommandHandlerTests {
 
     private func defaultsSuiteName(_ defaults: UserDefaults) -> String {
         defaults.string(forKey: "suiteName")!
+    }
+}
+
+private actor RecordingEngineStub: RecordingEngineProtocol {
+    struct Counts: Equatable, Sendable {
+        let starts: Int
+        let stops: Int
+    }
+
+    private var startCount = 0
+    private var stopCount = 0
+
+    func startRecording(
+        to outputURL: URL,
+        recordSystemAudio: Bool,
+        recordMicrophone: Bool,
+        duration: TimeInterval?,
+        transcriptionPipelines: SourceTranscriptionPipelines?
+    ) async throws {
+        startCount += 1
+    }
+
+    func stopRecording() async {
+        stopCount += 1
+    }
+
+    func counts() -> Counts {
+        Counts(starts: startCount, stops: stopCount)
+    }
+}
+
+private actor TranscriptionRuntimeStub: TranscriptionRuntimeProtocol {
+    struct Counts: Equatable, Sendable {
+        let starts: Int
+        let begins: Int
+        let finishes: Int
+    }
+
+    private let pipelines: SourceTranscriptionPipelines
+    private let drainingSnapshot: TranscriptionRuntime.Snapshot
+    private var startCount = 0
+    private var beginCount = 0
+    private var finishCount = 0
+
+    init(
+        pipelines: SourceTranscriptionPipelines,
+        snapshot: TranscriptionRuntime.Snapshot
+    ) {
+        self.pipelines = pipelines
+        self.drainingSnapshot = snapshot
+    }
+
+    func checkServer(settings: TranscriptionRuntime.Settings) async throws {}
+
+    func startSession(
+        recordingURL: URL,
+        sources: Set<TranscriptionSource>,
+        settings: TranscriptionRuntime.Settings
+    ) async throws -> SourceTranscriptionPipelines {
+        startCount += 1
+        return pipelines
+    }
+
+    func beginFinishingSession() -> TranscriptionRuntime.Snapshot {
+        beginCount += 1
+        return drainingSnapshot
+    }
+
+    func finishSession() async {
+        finishCount += 1
+    }
+
+    func shutdown() async {}
+
+    func counts() -> Counts {
+        Counts(starts: startCount, begins: beginCount, finishes: finishCount)
     }
 }

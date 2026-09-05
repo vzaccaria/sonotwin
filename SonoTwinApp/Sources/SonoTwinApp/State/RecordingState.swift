@@ -1,6 +1,33 @@
 import Foundation
 import AVFoundation
 
+protocol RecordingEngineProtocol: Actor {
+    func startRecording(
+        to outputURL: URL,
+        recordSystemAudio: Bool,
+        recordMicrophone: Bool,
+        duration: TimeInterval?,
+        transcriptionPipelines: SourceTranscriptionPipelines?
+    ) async throws
+    func stopRecording() async
+}
+
+extension RecordingEngine: RecordingEngineProtocol {}
+
+protocol TranscriptionRuntimeProtocol: Actor {
+    func checkServer(settings: TranscriptionRuntime.Settings) async throws
+    func startSession(
+        recordingURL: URL,
+        sources: Set<TranscriptionSource>,
+        settings: TranscriptionRuntime.Settings
+    ) async throws -> SourceTranscriptionPipelines
+    func beginFinishingSession() -> TranscriptionRuntime.Snapshot
+    func finishSession() async
+    func shutdown() async
+}
+
+extension TranscriptionRuntime: TranscriptionRuntimeProtocol {}
+
 // MARK: - @Observable State Container
 // @Observable is a macro (new in macOS 14/iOS 17) that makes a class
 // automatically notify SwiftUI when its properties change.
@@ -67,9 +94,9 @@ final class RecordingState {
     // MARK: - Internal References
     // These are implementation details, not exposed to the UI.
 
-    private var recordingEngine: RecordingEngine?
+    private var recordingEngine: (any RecordingEngineProtocol)?
     private var elapsedTimer: Timer?
-    private var transcriptionRuntime: TranscriptionRuntime?
+    private var transcriptionRuntime: (any TranscriptionRuntimeProtocol)?
     private var sessionTranscriptionActive = false
     private var startTime: Date?
 
@@ -94,11 +121,11 @@ final class RecordingState {
 
     /// Called by AppDelegate to inject the recording engine dependency.
     /// This pattern (dependency injection) makes testing easier.
-    func setRecordingEngine(_ engine: RecordingEngine) {
-        self.recordingEngine = engine
+    func setRecordingEngine(_ engine: any RecordingEngineProtocol) {
+        recordingEngine = engine
     }
 
-    func setTranscriptionRuntime(_ runtime: TranscriptionRuntime) {
+    func setTranscriptionRuntime(_ runtime: any TranscriptionRuntimeProtocol) {
         transcriptionRuntime = runtime
     }
 
@@ -121,10 +148,13 @@ final class RecordingState {
     func startRecording(outputPath: URL? = nil) async throws {
         // Guard statement: exit early if condition is false.
         // This is cleaner than nested if statements.
-        guard !isRecording else { return }
+        guard !isRecording, !isStopping else { return }
         guard let engine = recordingEngine else {
             throw NSError(domain: "RecordingState", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Recording engine not initialized"])
+        }
+        guard !transcriptionEnabled || transcriptionDisplayState != .draining else {
+            throw TranscriptionConfigurationError.sessionDraining
         }
 
         // Use provided path or generate one with a timestamp.
@@ -144,6 +174,12 @@ final class RecordingState {
                     settings: try transcriptionSettings()
                 )
                 sessionTranscriptionActive = true
+            } catch let error as TranscriptionRuntime.RuntimeError
+                where error == .sessionAlreadyActive {
+                transcriptionConfigurationError =
+                    TranscriptionConfigurationError.sessionDraining.localizedDescription
+                sessionTranscriptionActive = false
+                throw TranscriptionConfigurationError.sessionDraining
             } catch {
                 transcriptionConfigurationError = error.localizedDescription
                 sessionTranscriptionActive = false
@@ -193,17 +229,20 @@ final class RecordingState {
         elapsedTimer = nil
 
         await recordingEngine?.stopRecording()
-        if sessionTranscriptionActive {
-            await transcriptionRuntime?.finishSession()
-            sessionTranscriptionActive = false
-        }
 
-        // Reset state for next recording.
+        // The archival WAV is complete at this point. Publish that fact before
+        // starting the potentially long transcript drain.
         isRecording = false
         systemAudioLevel = 0
         microphoneLevel = 0
         systemAudioPeak = 0
         microphonePeak = 0
+
+        if sessionTranscriptionActive, let transcriptionRuntime {
+            sessionTranscriptionActive = false
+            let snapshot = await transcriptionRuntime.beginFinishingSession()
+            updateTranscriptionStatus(snapshot)
+        }
     }
 
     /// Called by RecordingEngine to update audio levels for VU meters.
@@ -220,6 +259,12 @@ final class RecordingState {
 
     var transcriptionDisplayState: TranscriptionRuntime.State {
         transcriptionConfigurationError == nil ? transcriptionSnapshot.state : .failed
+    }
+
+    var canStartRecording: Bool {
+        !isRecording
+            && !isStopping
+            && (!transcriptionEnabled || transcriptionDisplayState != .draining)
     }
 
     var transcriptionError: String? {
@@ -329,6 +374,7 @@ private enum TranscriptionConfigurationError: Error, LocalizedError {
     case missingExecutable
     case missingModel
     case missingLanguage
+    case sessionDraining
 
     var errorDescription: String? {
         switch self {
@@ -338,6 +384,8 @@ private enum TranscriptionConfigurationError: Error, LocalizedError {
             return "Choose a Whisper model"
         case .missingLanguage:
             return "Enter a language code or auto"
+        case .sessionDraining:
+            return "Previous transcript is still finishing"
         }
     }
 }

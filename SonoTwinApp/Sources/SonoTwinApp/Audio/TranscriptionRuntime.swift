@@ -56,6 +56,7 @@ actor TranscriptionRuntime {
     private var store: TranscriptSessionStore?
     private var queue: TranscriptionEventQueue?
     private var workerTask: Task<Void, Never>?
+    private var sessionDrainTask: Task<Void, Never>?
     private var backlog = 0
     private var lagMilliseconds: Int64 = 0
     private var lastCompletedSequence: Int?
@@ -81,7 +82,7 @@ actor TranscriptionRuntime {
         sources: Set<TranscriptionSource>,
         settings: Settings
     ) async throws -> SourceTranscriptionPipelines {
-        guard workerTask == nil else {
+        guard workerTask == nil, sessionDrainTask == nil else {
             throw RuntimeError.sessionAlreadyActive
         }
         guard !sources.isEmpty else {
@@ -137,17 +138,41 @@ actor TranscriptionRuntime {
         return sourcePipelines
     }
 
-    func finishSession() async {
-        guard let queue, let workerTask, let store else { return }
-
-        if !sessionHadFailure {
-            state = .draining
-            try? await store.setLifecycle(.draining)
-            publishSnapshot()
+    @discardableResult
+    func beginFinishingSession() -> Snapshot {
+        guard sessionDrainTask == nil,
+              let queue,
+              let workerTask,
+              let store else {
+            return makeSnapshot()
         }
 
+        let markDraining = !sessionHadFailure
+        if markDraining {
+            state = .draining
+        }
         queue.finish()
-        await workerTask.value
+        sessionDrainTask = Task { [weak self] in
+            if markDraining {
+                try? await store.setLifecycle(.draining)
+            }
+            await workerTask.value
+            await self?.completeFinishingSession(queue: queue, store: store)
+        }
+        publishSnapshot()
+        return makeSnapshot()
+    }
+
+    func finishSession() async {
+        _ = beginFinishingSession()
+        let drainTask = sessionDrainTask
+        await drainTask?.value
+    }
+
+    private func completeFinishingSession(
+        queue: TranscriptionEventQueue,
+        store: TranscriptSessionStore
+    ) async {
         backlog = queue.depth
 
         if sessionHadFailure || backlog > 0 {
@@ -161,8 +186,9 @@ actor TranscriptionRuntime {
         }
         await refreshStoreSnapshot(store)
 
-        self.workerTask = nil
+        workerTask = nil
         self.queue = nil
+        sessionDrainTask = nil
         publishSnapshot()
     }
 
