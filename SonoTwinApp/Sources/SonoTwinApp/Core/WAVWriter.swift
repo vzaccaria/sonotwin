@@ -44,9 +44,6 @@ final class WAVWriter: @unchecked Sendable {
     /// Thread safety for writes.
     private let lock = NSLock()
 
-    /// Receives each PCM16 byte range only after it is written successfully.
-    private let sampleObserver: (@Sendable (Data) -> Void)?
-
     // MARK: - Initialization
 
     /// Create a WAV file and write the header.
@@ -59,14 +56,12 @@ final class WAVWriter: @unchecked Sendable {
         outputPath: URL,
         sampleRate: UInt32 = 48000,
         channels: UInt16 = 2,
-        bitsPerSample: UInt16 = 16,
-        sampleObserver: (@Sendable (Data) -> Void)? = nil
+        bitsPerSample: UInt16 = 16
     ) throws {
         self.filePath = outputPath
         self.sampleRate = sampleRate
         self.channels = channels
         self.bitsPerSample = bitsPerSample
-        self.sampleObserver = sampleObserver
 
         FileManager.default.createFile(atPath: outputPath.path, contents: nil)
         self.fileHandle = try FileHandle(forWritingTo: outputPath)
@@ -137,33 +132,35 @@ final class WAVWriter: @unchecked Sendable {
 
         try fileHandle.write(contentsOf: samples)
         dataSize += UInt32(samples.count)
-        sampleObserver?(samples)
     }
 
-    /// Convert AVAudioPCMBuffer to 16-bit PCM and append.
-    func appendSamples(_ buffer: AVAudioPCMBuffer) {
-        guard let floatData = buffer.floatChannelData else { return }
+    /// Convert a non-interleaved Float32 buffer to interleaved PCM16.
+    static func pcm16Data(from buffer: AVAudioPCMBuffer) -> Data? {
+        guard let floatData = buffer.floatChannelData else { return nil }
 
         let frameCount = Int(buffer.frameLength)
         let channelCount = Int(buffer.format.channelCount)
+        var int16Data = Data(count: frameCount * channelCount * MemoryLayout<Int16>.size)
 
-        // Allocate buffer for 16-bit samples.
-        var int16Data = Data(capacity: frameCount * channelCount * 2)
-
-        // Convert each sample from float to 16-bit.
-        for frame in 0..<frameCount {
-            for channel in 0..<channelCount {
-                let sample = floatData[channel][frame]
-                // Clamp to valid range.
-                let clampedSample = max(-1.0, min(1.0, sample))
-                // Scale to 16-bit range.
-                let int16Sample = Int16(clampedSample * Float(Int16.max))
-                // Append as little-endian.
-                withUnsafeBytes(of: int16Sample.littleEndian) { int16Data.append(contentsOf: $0) }
+        int16Data.withUnsafeMutableBytes { rawBuffer in
+            let output = rawBuffer.bindMemory(to: Int16.self)
+            for frame in 0..<frameCount {
+                for channel in 0..<channelCount {
+                    let sample = floatData[channel][frame]
+                    let clampedSample = max(-1.0, min(1.0, sample))
+                    output[frame * channelCount + channel] =
+                        Int16(clampedSample * Float(Int16.max)).littleEndian
+                }
             }
         }
 
-        appendSamples(int16Data)
+        return int16Data
+    }
+
+    /// Convert AVAudioPCMBuffer to PCM16 and append.
+    func appendSamples(_ buffer: AVAudioPCMBuffer) {
+        guard let samples = Self.pcm16Data(from: buffer) else { return }
+        appendSamples(samples)
     }
 
     // MARK: - Finalization

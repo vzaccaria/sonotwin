@@ -68,7 +68,7 @@ struct WhisperServerSupervisorTests {
         } catch {
             #expect(
                 (error as? WhisperServerSupervisor.SupervisorError)
-                    == .invalidChunk(partialRequest.chunk.url.path)
+                    == .invalidChunk(partialRequest.url.path)
             )
         }
 
@@ -207,12 +207,10 @@ struct WhisperServerSupervisorTests {
             let inference = try await supervisor.transcribe(
                 .init(
                     source: .microphone,
-                    chunk: .init(
-                        sequence: 0,
-                        startMilliseconds: 0,
-                        endMilliseconds: 5_000,
-                        url: wavURL
-                    )
+                    sequence: 0,
+                    startMilliseconds: 0,
+                    endMilliseconds: 5_000,
+                    url: wavURL
                 )
             )
             #expect(inference.source == .microphone)
@@ -313,17 +311,15 @@ private struct FakeWhisperFixture {
         named name: String,
         source: TranscriptionSource,
         sequence: Int
-    ) -> WhisperServerSupervisor.ChunkRequest {
+    ) -> TranscriptionChunkPipeline.Chunk {
         let url = root.appendingPathComponent(name)
         try? Data("RIFF-fake".utf8).write(to: url)
         return .init(
             source: source,
-            chunk: .init(
-                sequence: sequence,
-                startMilliseconds: Int64(sequence * 4_000),
-                endMilliseconds: Int64(sequence * 4_000 + 5_000),
-                url: url
-            )
+            sequence: sequence,
+            startMilliseconds: Int64(sequence * 4_000),
+            endMilliseconds: Int64(sequence * 4_000 + 5_000),
+            url: url
         )
     }
 

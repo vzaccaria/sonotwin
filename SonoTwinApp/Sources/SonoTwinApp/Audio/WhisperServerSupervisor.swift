@@ -1,12 +1,6 @@
 import Darwin
 import Foundation
 
-/// Identifies the capture stream that produced a transcription chunk.
-enum TranscriptionSource: String, Codable, Sendable {
-    case microphone
-    case system
-}
-
 actor WhisperServerSupervisor {
     struct Configuration: Sendable {
         let executableURL: URL
@@ -59,11 +53,6 @@ actor WhisperServerSupervisor {
         let resolvedLanguage: String?
         let queuedRequestCount: Int
         let diagnostics: String
-    }
-
-    struct ChunkRequest: Sendable {
-        let source: TranscriptionSource
-        let chunk: TranscriptionChunkPipeline.Chunk
     }
 
     struct Segment: Equatable, Sendable {
@@ -144,7 +133,7 @@ actor WhisperServerSupervisor {
     }
 
     private struct PendingInference {
-        let request: ChunkRequest
+        let chunk: TranscriptionChunkPipeline.Chunk
         let continuation: CheckedContinuation<Inference, Error>
     }
 
@@ -281,18 +270,18 @@ actor WhisperServerSupervisor {
         }
     }
 
-    func transcribe(_ request: ChunkRequest) async throws -> Inference {
+    func transcribe(_ chunk: TranscriptionChunkPipeline.Chunk) async throws -> Inference {
         guard case .ready = state else {
             throw SupervisorError.unavailableState(stateDescription)
         }
-        guard request.chunk.url.pathExtension.lowercased() == "wav",
-              FileManager.default.isReadableFile(atPath: request.chunk.url.path) else {
-            throw SupervisorError.invalidChunk(request.chunk.url.path)
+        guard chunk.url.pathExtension.lowercased() == "wav",
+              FileManager.default.isReadableFile(atPath: chunk.url.path) else {
+            throw SupervisorError.invalidChunk(chunk.url.path)
         }
 
         return try await withCheckedThrowingContinuation { continuation in
             pendingInferences.append(
-                PendingInference(request: request, continuation: continuation)
+                PendingInference(chunk: chunk, continuation: continuation)
             )
             if drainTask == nil {
                 drainTask = Task { await self.drainInferenceQueue() }
@@ -425,7 +414,7 @@ actor WhisperServerSupervisor {
             publishSnapshot()
 
             do {
-                let result = try await performInference(pending.request)
+                let result = try await performInference(pending.chunk)
                 pending.continuation.resume(returning: result)
             } catch {
                 pending.continuation.resume(throwing: error)
@@ -445,7 +434,7 @@ actor WhisperServerSupervisor {
         publishSnapshot()
     }
 
-    private func performInference(_ request: ChunkRequest) async throws -> Inference {
+    private func performInference(_ chunk: TranscriptionChunkPipeline.Chunk) async throws -> Inference {
         guard let port = selectedPort else {
             throw SupervisorError.unavailableState("missing server port")
         }
@@ -454,14 +443,14 @@ actor WhisperServerSupervisor {
         let boundary = "SonoTwin-\(UUID().uuidString)"
         let audio: Data
         do {
-            audio = try Data(contentsOf: request.chunk.url)
+            audio = try Data(contentsOf: chunk.url)
         } catch {
-            throw SupervisorError.invalidChunk(request.chunk.url.path)
+            throw SupervisorError.invalidChunk(chunk.url.path)
         }
 
         let body = Self.multipartBody(
             boundary: boundary,
-            filename: request.chunk.url.lastPathComponent,
+            filename: chunk.url.lastPathComponent,
             audio: audio,
             fields: [
                 "language": language,
@@ -516,8 +505,8 @@ actor WhisperServerSupervisor {
         }
 
         return Inference(
-            source: request.source,
-            chunk: request.chunk,
+            source: chunk.source,
+            chunk: chunk,
             language: serverResponse.language,
             durationSeconds: serverResponse.duration ?? 0,
             text: normalizedText,

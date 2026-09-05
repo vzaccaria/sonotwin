@@ -13,6 +13,7 @@ struct TranscriptionChunkPipelineTests {
         let collector = ChunkCollector()
         let pipeline = try TranscriptionChunkPipeline(
             configuration: .init(
+                source: .microphone,
                 chunksDirectory: chunksDirectory,
                 maxQueuedBytes: 3_000_000
             ),
@@ -23,6 +24,7 @@ struct TranscriptionChunkPipelineTests {
         try await pipeline.finish()
 
         let chunks = collector.chunks
+        #expect(chunks.map(\.source) == [.microphone, .microphone, .microphone])
         #expect(chunks.map(\.sequence) == [0, 1, 2])
         #expect(chunks.map(\.startMilliseconds) == [0, 4_000, 9_000])
         #expect(chunks.map(\.endMilliseconds) == [5_000, 10_000, 11_000])
@@ -63,6 +65,7 @@ struct TranscriptionChunkPipelineTests {
         let failureCollector = FailureCollector()
         let pipeline = try TranscriptionChunkPipeline(
             configuration: .init(
+                source: .system,
                 chunksDirectory: root.appendingPathComponent("chunks"),
                 maxQueuedBytes: 8
             ),
@@ -96,15 +99,15 @@ struct TranscriptionChunkPipelineTests {
 
         let pipeline = try TranscriptionChunkPipeline(
             configuration: .init(
+                source: .microphone,
                 chunksDirectory: root.appendingPathComponent("chunks"),
                 maxQueuedBytes: 8
             )
         )
         let archiveURL = root.appendingPathComponent("archive.wav")
-        let writer = try WAVWriter(outputPath: archiveURL) { samples in
-            _ = pipeline.append(samples)
-        }
+        let writer = try WAVWriter(outputPath: archiveURL)
         let archivedPCM = Data((0..<16).map(UInt8.init))
+        #expect(!pipeline.append(archivedPCM))
 
         try writer.appendSamplesThrowing(archivedPCM)
         try writer.finalize()
@@ -123,6 +126,38 @@ struct TranscriptionChunkPipelineTests {
         #expect(archive.count == 44 + archivedPCM.count)
         #expect(littleEndianUInt32(archive, at: 40) == UInt32(archivedPCM.count))
         #expect(archive.suffix(archivedPCM.count) == archivedPCM)
+    }
+
+    @Test
+    func offsetsChunksOntoTheSharedSessionTimeline() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let collector = ChunkCollector()
+        let pipeline = try TranscriptionChunkPipeline(
+            configuration: .init(
+                source: .system,
+                chunksDirectory: root.appendingPathComponent("system")
+            ),
+            onChunkReady: { collector.record($0) }
+        )
+
+        #expect(
+            pipeline.append(
+                stereoPCM(seconds: 1),
+                firstSampleMilliseconds: 250
+            )
+        )
+        try await pipeline.finish()
+
+        let chunk = try #require(collector.chunks.first)
+        #expect(chunk.source == .system)
+        #expect(chunk.startMilliseconds == 250)
+        #expect(chunk.endMilliseconds == 1_250)
+        #expect(
+            chunk.url.lastPathComponent
+                == "000000_000000000250_000000001250.wav"
+        )
     }
 
     private func temporaryDirectory() -> URL {

@@ -25,7 +25,7 @@ actor RecordingEngine {
     private var micCapture: MicrophoneCapture?
     private var mixer: AudioMixer?
     private var writer: WAVWriter?
-    private var transcriptionChunkPipeline: TranscriptionChunkPipeline?
+    private var sourceTranscriptionPipelines: SourceTranscriptionPipelines?
 
     // MARK: - Level Meters
     // One for each audio source. These calculate RMS/peak for VU meters.
@@ -36,6 +36,7 @@ actor RecordingEngine {
     // MARK: - State
     private var isRecording = false
     private var levelUpdateCallback: (@Sendable (Float, Float, Float, Float) -> Void)?
+    private var recordingStartUptimeNanoseconds: UInt64?
 
     private var recordingSystemAudio = false
     private var recordingMicrophone = false
@@ -62,17 +63,14 @@ actor RecordingEngine {
         recordSystemAudio: Bool,
         recordMicrophone: Bool,
         duration: TimeInterval?,
-        transcriptionPipeline: TranscriptionChunkPipeline?
+        transcriptionPipelines: SourceTranscriptionPipelines?
     ) async throws {
         guard !isRecording else { return }
 
-        // The observer only enqueues bytes; conversion and chunk I/O happen on
-        // TranscriptionChunkPipeline's bounded serial worker.
-        let newWriter = try WAVWriter(outputPath: outputPath) { samples in
-            _ = transcriptionPipeline?.append(samples)
-        }
+        let newWriter = try WAVWriter(outputPath: outputPath)
         self.writer = newWriter
-        self.transcriptionChunkPipeline = transcriptionPipeline
+        self.sourceTranscriptionPipelines = transcriptionPipelines
+        self.recordingStartUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
         self.recordingSystemAudio = recordSystemAudio
         self.recordingMicrophone = recordMicrophone
 
@@ -90,16 +88,26 @@ actor RecordingEngine {
             // [weak self] prevents retain cycles.
             let sysCapture = SystemAudioCapture()
             sysCapture.onSamples = { [weak self] buffer in
+                let capturedAt = DispatchTime.now().uptimeNanoseconds
                 Task { [weak self] in
-                    await self?.handleSystemSamples(buffer, mixing: true)
+                    await self?.handleSystemSamples(
+                        buffer,
+                        mixing: true,
+                        capturedAtNanoseconds: capturedAt
+                    )
                 }
             }
 
             // Setup microphone capture.
             let micCap = MicrophoneCapture()
             micCap.onSamples = { [weak self] buffer in
+                let capturedAt = DispatchTime.now().uptimeNanoseconds
                 Task { [weak self] in
-                    await self?.handleMicSamples(buffer, mixing: true)
+                    await self?.handleMicSamples(
+                        buffer,
+                        mixing: true,
+                        capturedAtNanoseconds: capturedAt
+                    )
                 }
             }
 
@@ -114,8 +122,13 @@ actor RecordingEngine {
             // MARK: System Audio Only
             let sysCapture = SystemAudioCapture()
             sysCapture.onSamples = { [weak self] buffer in
+                let capturedAt = DispatchTime.now().uptimeNanoseconds
                 Task { [weak self] in
-                    await self?.handleSystemSamples(buffer, mixing: false)
+                    await self?.handleSystemSamples(
+                        buffer,
+                        mixing: false,
+                        capturedAtNanoseconds: capturedAt
+                    )
                 }
             }
             self.systemCapture = sysCapture
@@ -125,8 +138,13 @@ actor RecordingEngine {
             // MARK: Microphone Only
             let micCap = MicrophoneCapture()
             micCap.onSamples = { [weak self] buffer in
+                let capturedAt = DispatchTime.now().uptimeNanoseconds
                 Task { [weak self] in
-                    await self?.handleMicSamples(buffer, mixing: false)
+                    await self?.handleMicSamples(
+                        buffer,
+                        mixing: false,
+                        capturedAtNanoseconds: capturedAt
+                    )
                 }
             }
             self.micCapture = micCap
@@ -162,9 +180,9 @@ actor RecordingEngine {
         // Finalize the WAV file (updates header with actual size).
         try? writer?.finalize()
 
-        if let transcriptionChunkPipeline {
+        if let sourceTranscriptionPipelines {
             do {
-                try await transcriptionChunkPipeline.finish()
+                try await sourceTranscriptionPipelines.finish()
             } catch {
                 print("Error finalizing transcription chunks: \(error)")
             }
@@ -175,9 +193,10 @@ actor RecordingEngine {
         micCapture = nil
         mixer = nil
         writer = nil
-        transcriptionChunkPipeline = nil
+        sourceTranscriptionPipelines = nil
         recordingSystemAudio = false
         recordingMicrophone = false
+        recordingStartUptimeNanoseconds = nil
 
         // Reset meters to zero.
         systemMeter.reset()
@@ -187,26 +206,90 @@ actor RecordingEngine {
     // MARK: - Audio Sample Handlers
     // Called from audio capture callbacks via Task.
 
-    private func handleSystemSamples(_ buffer: AVAudioPCMBuffer, mixing: Bool) {
-        // Update level meter for VU display.
+    private func handleSystemSamples(
+        _ buffer: AVAudioPCMBuffer,
+        mixing: Bool,
+        capturedAtNanoseconds: UInt64
+    ) {
         systemMeter.process(buffer)
+        let transcriptionSamples = routeToTranscription(
+            buffer,
+            source: .system,
+            capturedAtNanoseconds: capturedAtNanoseconds
+        )
 
-        // Route audio to mixer or directly to writer.
         if mixing {
             mixer?.addSystemAudio(buffer)
+        } else if let transcriptionSamples {
+            writer?.appendSamples(transcriptionSamples)
         } else {
             writer?.appendSamples(buffer)
         }
     }
 
-    private func handleMicSamples(_ buffer: AVAudioPCMBuffer, mixing: Bool) {
+    private func handleMicSamples(
+        _ buffer: AVAudioPCMBuffer,
+        mixing: Bool,
+        capturedAtNanoseconds: UInt64
+    ) {
         micMeter.process(buffer)
+        let transcriptionSamples = routeToTranscription(
+            buffer,
+            source: .microphone,
+            capturedAtNanoseconds: capturedAtNanoseconds
+        )
 
         if mixing {
             mixer?.addMicAudio(buffer)
+        } else if let transcriptionSamples {
+            writer?.appendSamples(transcriptionSamples)
         } else {
             writer?.appendSamples(buffer)
         }
+    }
+
+    private func routeToTranscription(
+        _ buffer: AVAudioPCMBuffer,
+        source: TranscriptionSource,
+        capturedAtNanoseconds: UInt64
+    ) -> Data? {
+        guard let pipelines = sourceTranscriptionPipelines,
+              pipelines.contains(source),
+              let samples = WAVWriter.pcm16Data(from: buffer) else {
+            return nil
+        }
+
+        let firstSampleMilliseconds = firstSampleMilliseconds(
+            for: buffer,
+            capturedAtNanoseconds: capturedAtNanoseconds
+        )
+        _ = pipelines.append(
+            samples,
+            source: source,
+            firstSampleMilliseconds: firstSampleMilliseconds
+        )
+        return samples
+    }
+
+    private func firstSampleMilliseconds(
+        for buffer: AVAudioPCMBuffer,
+        capturedAtNanoseconds: UInt64
+    ) -> Int64 {
+        guard let recordingStartUptimeNanoseconds,
+              buffer.format.sampleRate > 0 else {
+            return 0
+        }
+
+        let elapsedNanoseconds = capturedAtNanoseconds >= recordingStartUptimeNanoseconds
+            ? capturedAtNanoseconds - recordingStartUptimeNanoseconds
+            : 0
+        let bufferNanoseconds = UInt64(
+            Double(buffer.frameLength) * 1_000_000_000 / buffer.format.sampleRate
+        )
+        let firstSampleNanoseconds = elapsedNanoseconds > bufferNanoseconds
+            ? elapsedNanoseconds - bufferNanoseconds
+            : 0
+        return Int64(firstSampleNanoseconds / 1_000_000)
     }
 
     // MARK: - Level Update Loop

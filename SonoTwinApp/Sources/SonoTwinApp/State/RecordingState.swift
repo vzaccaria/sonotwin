@@ -89,7 +89,7 @@ final class RecordingState {
             recordSystemAudio: recordSystemAudio,
             recordMicrophone: recordMicrophone,
             duration: duration,
-            transcriptionPipeline: nil
+            transcriptionPipelines: nil
         )
 
         isRecording = true

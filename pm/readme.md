@@ -9,9 +9,9 @@ SonoTwin is a macOS 14+ menu bar application that records system audio, micropho
 - `SonoTwinApp` is a single Swift Package executable embedded in a menu bar app bundle.
 - The app layer owns the status item, popover lifecycle, and composition root.
 - State and UI remain on `MainActor`; recording orchestration bridges them to capture and file-writing components.
-- The audio boundary captures system and microphone streams, mixes them, computes levels, and writes WAV output.
-- An optional bounded transcription branch converts archived PCM to atomic mono 16 kHz WAV chunks without blocking recording.
-- `WhisperServerSupervisor` owns one loopback child process, serializes source-tagged inference, and isolates its failures from recording.
+- The audio boundary captures system and microphone streams, mixes them when selected together, computes levels, and writes the archival WAV.
+- An optional bounded transcription branch taps normalized microphone and system PCM before mixing, then emits independent source-tagged mono 16 kHz WAV chunks under `chunks/<source>`.
+- `WhisperServerSupervisor` owns one loopback child process, serializes inference across both source-tagged streams, and isolates its failures from recording.
 - The socket boundary exposes start, stop, and status commands as JSON over `/tmp/sonotwin.sock`; `sonotwin-ctl` is its shell client.
 - `Assets/` contains architecture and concurrency diagrams; `README.md` documents the user-facing protocol and behavior.
 

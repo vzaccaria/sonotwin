@@ -3,6 +3,7 @@ import Foundation
 
 final class TranscriptionChunkPipeline: @unchecked Sendable {
     struct Configuration: Sendable {
+        let source: TranscriptionSource
         let chunksDirectory: URL
         let inputSampleRate: Int
         let inputChannels: Int
@@ -12,6 +13,7 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
         let maxQueuedBytes: Int
 
         init(
+            source: TranscriptionSource,
             chunksDirectory: URL,
             inputSampleRate: Int = 48_000,
             inputChannels: Int = 2,
@@ -20,6 +22,7 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
             overlapMilliseconds: Int64 = 1_000,
             maxQueuedBytes: Int = 1_920_000
         ) {
+            self.source = source
             self.chunksDirectory = chunksDirectory
             self.inputSampleRate = inputSampleRate
             self.inputChannels = inputChannels
@@ -31,6 +34,7 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
     }
 
     struct Chunk: Equatable, Sendable {
+        let source: TranscriptionSource
         let sequence: Int
         let startMilliseconds: Int64
         let endMilliseconds: Int64
@@ -86,7 +90,6 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
 
     private let bytesPerInputFrame: Int
     private let cadenceInputFrames: Int64
-    private let overlapInputFrames: Int64
     private let cadenceInputBytes: Int
     private let overlapInputBytes: Int
 
@@ -99,6 +102,7 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
     private var cadenceInput = Data()
     private var precedingOverlap = Data()
     private var processedInputFrames: Int64 = 0
+    private var timelineInitialized = false
     private var nextSequence = 0
 
     init(
@@ -137,7 +141,6 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
         self.onFailure = onFailure
         self.bytesPerInputFrame = configuration.inputChannels * MemoryLayout<Int16>.size
         self.cadenceInputFrames = cadenceFrames
-        self.overlapInputFrames = overlapFrames
         self.cadenceInputBytes = Int(cadenceFrames) * configuration.inputChannels * MemoryLayout<Int16>.size
         self.overlapInputBytes = Int(overlapFrames) * configuration.inputChannels * MemoryLayout<Int16>.size
 
@@ -150,7 +153,7 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
     }
 
     @discardableResult
-    func append(_ samples: Data) -> Bool {
+    func append(_ samples: Data, firstSampleMilliseconds: Int64? = nil) -> Bool {
         guard !samples.isEmpty else { return true }
 
         var rejection: PipelineError?
@@ -175,12 +178,12 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
         }
 
         queuedBytes += samples.count
-        processingQueue.async { [self, samples] in
+        processingQueue.async { [self, samples, firstSampleMilliseconds] in
             defer { releaseQueuedBytes(samples.count) }
             guard currentError == nil else { return }
 
             do {
-                try process(samples)
+                try process(samples, firstSampleMilliseconds: firstSampleMilliseconds)
             } catch {
                 recordFailure(mapError(error))
             }
@@ -255,7 +258,13 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
         return .ioFailure(error.localizedDescription)
     }
 
-    private func process(_ samples: Data) throws {
+    private func process(_ samples: Data, firstSampleMilliseconds: Int64?) throws {
+        if !timelineInitialized {
+            let startMilliseconds = max(0, firstSampleMilliseconds ?? 0)
+            processedInputFrames = Int64(configuration.inputSampleRate) * startMilliseconds / 1_000
+            timelineInitialized = true
+        }
+
         var cursor = samples.startIndex
 
         while cursor < samples.endIndex {
@@ -329,6 +338,7 @@ final class TranscriptionChunkPipeline: @unchecked Sendable {
         }
 
         let chunk = Chunk(
+            source: configuration.source,
             sequence: nextSequence,
             startMilliseconds: startMilliseconds,
             endMilliseconds: endMilliseconds,
