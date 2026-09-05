@@ -7,13 +7,12 @@ Updated: 2026-09-05
 Active (children + detail in bd; run `bd show <id>`):
 
 1. `audioscribe-8fi` — Near-real-time transcription and contextual assistant. Produce a local live transcript without coupling transcription failures to recording.
-   - `audioscribe-8fi.6` — ready: create the global contextual-copilot skill.
-   - `audioscribe-8fi.7` — blocked by `.6`: verify the live pipeline and recovery.
+   - `audioscribe-8fi.7` — ready: verify the live pipeline, skill invocation, control, and recovery end to end.
 
 Parked: none.
 
 ## Handoff
 
-Written: 2026-09-05 11:55 · Vittorio Zaccaria
+Written: 2026-09-05 12:26 · Vittorio Zaccaria
 
-Done: completed `audioscribe-8fi.10`; Automatic remains the default but every finalized chunk independently sends `language=auto` plus `translate=false`, so an early detection cannot pin the session to English and translation-tagged responses are rejected. The popover now renders the Automatic/Italian/English selector and server paths before capture starts. The real installed whisper-server/model transcribed synthesized Italian as Italian (`capito`) and English as English (`understand`) in Automatic mode; all 25 tests pass and the release bundle was rebuilt. The `.6` design now treats microphone-only clarification phrases such as “non ho capito” and “fammi capire meglio” as immediate, deduplicated triggers over the system-audio context. Next: quit/reopen the currently running app to load the rebuilt bundle, then implement `.6`. Gotchas: this machine still has zero valid code-signing identities, so the ad-hoc signature makes TCC permission build-specific; use `make reset-screen-permission` only for SonoTwin if System Recording is stale. Preserve unrelated asset and build-artifact worktree changes. Blockers: stable cross-build TCC still requires a signing identity.
+Done: completed `audioscribe-8fi.6`; installed `contextual-copilot` in the canonical global skills repository with implicit `?` routing, deterministic snapshotting of finalized transcript JSONL, stable sequence/time provenance, five-minute context expansion, prompt-supplied document context, content-specific explanation/research follow-ups, and no polling. Added explicit SonoTwin `start`/`stop`/`status` control; a bare `?` is read-only, while an explicit start begins recording plus local transcription and stop waits for drain. Updated the global `meetings` skill to reuse the newest complete `.sonotwin` transcript whose manifest recording path exactly matches the selected WAV, invoking Whisper only when no completed match exists. Verification: seven helper/control tests pass; both skills pass the official validator; real app status and live transcript resolution reached session `EC6EDB9F-D5E2-4F70-99B7-B9B51CD4FBCD` through sequence 7; forward simulations produced the requested recap/explanation/actions and preserved transcript/document provenance. Next: execute `audioscribe-8fi.7` end-to-end verification, including a fresh agent session so the startup-time skill registry discovers `contextual-copilot`. Gotchas: the current already-running agent session has a static skill registry and reports the newly installed skill as unknown; a new session should load it. Stable cross-build TCC still requires a real signing identity; preserve unrelated asset and build-artifact worktree changes.

@@ -67,6 +67,25 @@ While the app is running, use `sonotwin-ctl` from the project root:
 ./sonotwin-ctl stop
 ```
 
+## Contextual Copilot
+
+The global skill is installed at `~/.agents/skills/contextual-copilot`. With
+SonoTwin running, enter `?` in the agent prompt to obtain an on-demand recap
+and simpler explanation of the latest finalized transcript records. Add a
+focus or local document path to interpret the same speech against extra
+context, for example `? rispetto a @slides.pdf`.
+The initial response offers specific follow-ups for earlier context, an
+alternative explanation, document comparison, web research, or
+state-of-the-art research; it performs no background model polling.
+
+Explicit agent requests can start SonoTwin recording with live transcription,
+stop and drain the current session, or inspect app status. A bare `?` is always
+read-only.
+
+The `meetings` skill checks the selected WAV for a matching completed
+`.sonotwin` session and reuses its transcript before considering
+`whisper-cli`.
+
 ## Architecture
 
 ![architecture](Assets/architecture.png)
