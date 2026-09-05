@@ -12,6 +12,7 @@ actor WhisperServerSupervisor {
         let requestTimeout: TimeInterval
         let shutdownTimeout: TimeInterval
         let maxDiagnosticBytes: Int
+        let ownershipRegistry: WhisperServerOwnershipRegistry
 
         init(
             executableURL: URL,
@@ -22,7 +23,8 @@ actor WhisperServerSupervisor {
             startupTimeout: TimeInterval = 10,
             requestTimeout: TimeInterval = 15,
             shutdownTimeout: TimeInterval = 3,
-            maxDiagnosticBytes: Int = 64 * 1_024
+            maxDiagnosticBytes: Int = 64 * 1_024,
+            ownershipRegistry: WhisperServerOwnershipRegistry = .shared
         ) {
             self.executableURL = executableURL
             self.modelURL = modelURL
@@ -33,6 +35,7 @@ actor WhisperServerSupervisor {
             self.requestTimeout = requestTimeout
             self.shutdownTimeout = shutdownTimeout
             self.maxDiagnosticBytes = maxDiagnosticBytes
+            self.ownershipRegistry = ownershipRegistry
         }
     }
 
@@ -154,6 +157,7 @@ actor WhisperServerSupervisor {
     private var pendingInferences: [PendingInference] = []
     private var inferenceHead = 0
     private var drainTask: Task<Void, Never>?
+    private var ownershipRecord: WhisperServerOwnershipRecord?
 
     init(configuration: Configuration, onStateChange: StateHandler? = nil) throws {
         guard !configuration.requestedLanguage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -203,6 +207,23 @@ actor WhisperServerSupervisor {
             throw error
         }
 
+        do {
+            let reclaimResult = try await configuration.ownershipRegistry.reclaimOrphanedServer()
+            if case .liveOwner(let ownerProcessIdentifier) = reclaimResult {
+                let error = SupervisorError.unavailableState(
+                    "another SonoTwin process \(ownerProcessIdentifier) owns whisper-server"
+                )
+                transition(to: .failed(error.localizedDescription))
+                throw error
+            }
+        } catch let error as SupervisorError {
+            throw error
+        } catch {
+            let supervisorError = SupervisorError.launchFailed(error.localizedDescription)
+            transition(to: .failed(supervisorError.localizedDescription))
+            throw supervisorError
+        }
+
         let port: UInt16
         do {
             port = try configuration.port ?? Self.allocateLoopbackPort()
@@ -229,6 +250,10 @@ actor WhisperServerSupervisor {
             "--threads", String(configuration.threads),
             "--no-language-probabilities"
         ]
+        let ownershipToken = UUID().uuidString
+        var environment = ProcessInfo.processInfo.environment
+        environment[WhisperServerOwnershipRegistry.environmentKey] = ownershipToken
+        process.environment = environment
         process.standardOutput = pipe
         process.standardError = pipe
 
@@ -248,9 +273,23 @@ actor WhisperServerSupervisor {
 
         do {
             try process.run()
+            let record = try await configuration.ownershipRegistry.recordOwnership(
+                serverProcessIdentifier: process.processIdentifier,
+                token: ownershipToken
+            )
+            guard self.process === process, process.isRunning else {
+                await configuration.ownershipRegistry.removeOwnership(record)
+                throw SupervisorError.processExited(process.terminationStatus)
+            }
+            ownershipRecord = record
         } catch {
-            cleanupProcessResources()
-            let supervisorError = SupervisorError.launchFailed(error.localizedDescription)
+            if process.isRunning {
+                process.terminate()
+                await waitForProcessExit(process, timeout: configuration.shutdownTimeout)
+            }
+            await cleanupProcessResources()
+            let supervisorError = error as? SupervisorError
+                ?? .launchFailed(error.localizedDescription)
             transition(to: .failed(supervisorError.localizedDescription))
             throw supervisorError
         }
@@ -268,7 +307,7 @@ actor WhisperServerSupervisor {
                 process.terminate()
                 await waitForProcessExit(process, timeout: configuration.shutdownTimeout)
             }
-            cleanupProcessResources()
+            await cleanupProcessResources()
             transition(to: .failed(supervisorError.localizedDescription))
             throw supervisorError
         }
@@ -322,7 +361,7 @@ actor WhisperServerSupervisor {
 
         let activeDrain = drainTask
         await activeDrain?.value
-        cleanupProcessResources()
+        await cleanupProcessResources()
         transition(to: .stopped)
     }
 
@@ -372,7 +411,7 @@ actor WhisperServerSupervisor {
         publishSnapshot()
     }
 
-    private func processDidExit(identifier: Int32, status: Int32) {
+    private func processDidExit(identifier: Int32, status: Int32) async {
         guard process?.processIdentifier == identifier else { return }
         switch state {
         case .stopping, .stopped:
@@ -382,6 +421,7 @@ actor WhisperServerSupervisor {
             transition(to: .failed(error.localizedDescription))
             failQueuedInferences(with: error)
         }
+        await cleanupProcessResources()
     }
 
     private func waitUntilReady(port: UInt16) async throws {
@@ -549,11 +589,17 @@ actor WhisperServerSupervisor {
         }
     }
 
-    private func cleanupProcessResources() {
+    private func cleanupProcessResources() async {
         outputPipe?.fileHandleForReading.readabilityHandler = nil
         process?.terminationHandler = nil
         outputPipe = nil
         process = nil
+
+        let record = ownershipRecord
+        ownershipRecord = nil
+        if let record {
+            await configuration.ownershipRegistry.removeOwnership(record)
+        }
     }
 
     private static func multipartBody(

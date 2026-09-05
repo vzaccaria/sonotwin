@@ -62,6 +62,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         state.setRecordingEngine(engine)
         state.setTranscriptionRuntime(transcriptionRuntime)
 
+        Task {
+            do {
+                let result = try await WhisperServerOwnershipRegistry.shared.reclaimOrphanedServer()
+                if case .terminated(let processIdentifier) = result {
+                    print("WhisperServerSupervisor: Reclaimed orphaned process \(processIdentifier)")
+                }
+            } catch {
+                print("WhisperServerSupervisor: Orphan cleanup failed: \(error.localizedDescription)")
+            }
+        }
+
         // MARK: Connect Engine to State
         // Task creates an asynchronous context for async/await code.
         // @MainActor ensures this runs on the main thread (required for UI).

@@ -21,6 +21,7 @@ struct WhisperServerSupervisorTests {
         #expect(ready.state == .ready)
         #expect(ready.processIdentifier != nil)
         #expect(ready.port != nil)
+        #expect(FileManager.default.fileExists(atPath: fixture.ownershipRecordURL.path))
 
         let silentRequest = fixture.request(
             named: "silent.wav",
@@ -76,6 +77,7 @@ struct WhisperServerSupervisorTests {
         let stopped = await supervisor.snapshot()
         #expect(stopped.state == .stopped)
         #expect(stopped.processIdentifier == nil)
+        #expect(!FileManager.default.fileExists(atPath: fixture.ownershipRecordURL.path))
         #expect(states.contains(.starting))
         #expect(states.contains(.ready))
         #expect(states.contains(.stopping))
@@ -217,6 +219,36 @@ struct WhisperServerSupervisorTests {
     }
 
     @Test
+    func reclaimsOrphanProcessWithMatchingOwnershipToken() async throws {
+        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") else { return }
+        let fixture = try FakeWhisperFixture()
+        defer { fixture.remove() }
+
+        let supervisor = try WhisperServerSupervisor(configuration: fixture.configuration)
+        try await supervisor.start()
+        let snapshot = await supervisor.snapshot()
+        let processIdentifier = try #require(snapshot.processIdentifier)
+
+        let data = try Data(contentsOf: fixture.ownershipRecordURL)
+        let activeRecord = try JSONDecoder().decode(WhisperServerOwnershipRecord.self, from: data)
+        let orphanRecord = WhisperServerOwnershipRecord(
+            ownerProcessIdentifier: 2_000_000,
+            serverProcessIdentifier: activeRecord.serverProcessIdentifier,
+            token: activeRecord.token
+        )
+        try JSONEncoder().encode(orphanRecord).write(
+            to: fixture.ownershipRecordURL,
+            options: .atomic
+        )
+
+        let result = try await fixture.ownershipRegistry.reclaimOrphanedServer()
+        #expect(result == .terminated(processIdentifier))
+        #expect(!FileManager.default.fileExists(atPath: fixture.ownershipRecordURL.path))
+        #expect((await supervisor.snapshot()).processIdentifier == nil)
+        await supervisor.stop()
+    }
+
+    @Test
     func integratesWithConfiguredWhisperServer() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let executablePath = environment["WHISPER_SERVER_PATH"],
@@ -226,6 +258,11 @@ struct WhisperServerSupervisorTests {
         }
         let requestedLanguage = environment["WHISPER_TEST_LANGUAGE"] ?? "auto"
 
+        let ownershipRoot = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: ownershipRoot) }
+        let ownershipRegistry = WhisperServerOwnershipRegistry(
+            recordURL: ownershipRoot.appendingPathComponent("owner.json")
+        )
         let supervisor = try WhisperServerSupervisor(
             configuration: .init(
                 executableURL: URL(fileURLWithPath: executablePath),
@@ -233,7 +270,8 @@ struct WhisperServerSupervisorTests {
                 requestedLanguage: requestedLanguage,
                 startupTimeout: 10,
                 requestTimeout: 15,
-                shutdownTimeout: 3
+                shutdownTimeout: 3,
+                ownershipRegistry: ownershipRegistry
             )
         )
         try await supervisor.start()
@@ -297,6 +335,109 @@ struct WhisperServerSupervisorTests {
     }
 }
 
+@Suite
+struct WhisperServerOwnershipRegistryTests {
+    @Test
+    func preservesServerOwnedByLiveProcess() async throws {
+        let ownerProcessIdentifier: Int32 = 100
+        let serverProcessIdentifier: Int32 = 200
+        let token = UUID().uuidString
+        let processTable = FakeWhisperProcessTable(
+            running: [ownerProcessIdentifier, serverProcessIdentifier],
+            environment: [
+                serverProcessIdentifier: [
+                    WhisperServerOwnershipRegistry.environmentKey: token
+                ]
+            ]
+        )
+        let recordURL = try writeRecord(
+            ownerProcessIdentifier: ownerProcessIdentifier,
+            serverProcessIdentifier: serverProcessIdentifier,
+            token: token
+        )
+        defer { try? FileManager.default.removeItem(at: recordURL.deletingLastPathComponent()) }
+        let registry = WhisperServerOwnershipRegistry(
+            recordURL: recordURL,
+            processAccess: processTable.access
+        )
+
+        let result = try await registry.reclaimOrphanedServer()
+
+        #expect(result == .liveOwner(ownerProcessIdentifier))
+        #expect(FileManager.default.fileExists(atPath: recordURL.path))
+        #expect(processTable.signalCount == 0)
+    }
+
+    @Test
+    func removesRecordWhenServerNoLongerExists() async throws {
+        let recordURL = try writeRecord(
+            ownerProcessIdentifier: 100,
+            serverProcessIdentifier: 200,
+            token: UUID().uuidString
+        )
+        defer { try? FileManager.default.removeItem(at: recordURL.deletingLastPathComponent()) }
+        let processTable = FakeWhisperProcessTable()
+        let registry = WhisperServerOwnershipRegistry(
+            recordURL: recordURL,
+            processAccess: processTable.access
+        )
+
+        let result = try await registry.reclaimOrphanedServer()
+
+        #expect(result == .removedStaleRecord)
+        #expect(!FileManager.default.fileExists(atPath: recordURL.path))
+        #expect(processTable.signalCount == 0)
+    }
+
+    @Test
+    func neverSignalsProcessWithMismatchedOwnershipToken() async throws {
+        let serverProcessIdentifier: Int32 = 200
+        let recordURL = try writeRecord(
+            ownerProcessIdentifier: 100,
+            serverProcessIdentifier: serverProcessIdentifier,
+            token: "recorded-token"
+        )
+        defer { try? FileManager.default.removeItem(at: recordURL.deletingLastPathComponent()) }
+        let processTable = FakeWhisperProcessTable(
+            running: [serverProcessIdentifier],
+            environment: [
+                serverProcessIdentifier: [
+                    WhisperServerOwnershipRegistry.environmentKey: "different-token"
+                ]
+            ]
+        )
+        let registry = WhisperServerOwnershipRegistry(
+            recordURL: recordURL,
+            processAccess: processTable.access
+        )
+
+        let result = try await registry.reclaimOrphanedServer()
+
+        #expect(result == .removedUnverifiableRecord)
+        #expect(processTable.isRunning(serverProcessIdentifier))
+        #expect(processTable.signalCount == 0)
+        #expect(!FileManager.default.fileExists(atPath: recordURL.path))
+    }
+
+    private func writeRecord(
+        ownerProcessIdentifier: Int32,
+        serverProcessIdentifier: Int32,
+        token: String
+    ) throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WhisperServerOwnershipRegistryTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let recordURL = root.appendingPathComponent("owner.json")
+        let record = WhisperServerOwnershipRecord(
+            ownerProcessIdentifier: ownerProcessIdentifier,
+            serverProcessIdentifier: serverProcessIdentifier,
+            token: token
+        )
+        try JSONEncoder().encode(record).write(to: recordURL, options: .atomic)
+        return recordURL
+    }
+}
+
 private final class SupervisorStateCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var states: [WhisperServerSupervisor.State] = []
@@ -318,11 +459,15 @@ struct FakeWhisperFixture {
     let root: URL
     let executableURL: URL
     let modelURL: URL
+    let ownershipRecordURL: URL
+    let ownershipRegistry: WhisperServerOwnershipRegistry
 
     init(modelName: String = "model.bin") throws {
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("FakeWhisperServer-\(UUID().uuidString)")
         executableURL = root.appendingPathComponent("fake-whisper-server")
+        ownershipRecordURL = root.appendingPathComponent("whisper-server-owner.json")
+        ownershipRegistry = WhisperServerOwnershipRegistry(recordURL: ownershipRecordURL)
         modelURL = root.appendingPathComponent(modelName)
 
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -350,7 +495,8 @@ struct FakeWhisperFixture {
             startupTimeout: startupTimeout,
             requestTimeout: 2,
             shutdownTimeout: 1,
-            maxDiagnosticBytes: 4_096
+            maxDiagnosticBytes: 4_096,
+            ownershipRegistry: ownershipRegistry
         )
     }
 
@@ -463,4 +609,55 @@ struct FakeWhisperFixture {
     print("fake whisper-server ready", flush=True)
     http.server.ThreadingHTTPServer((host, port), Handler).serve_forever()
     """
+
+}
+private final class FakeWhisperProcessTable: @unchecked Sendable {
+    private let lock = NSLock()
+    private var runningProcessIdentifiers: Set<Int32>
+    private let environment: [Int32: [String: String]]
+    private var sentSignals: [(processIdentifier: Int32, signal: Int32)] = []
+
+    init(
+        running: Set<Int32> = [],
+        environment: [Int32: [String: String]] = [:]
+    ) {
+        self.runningProcessIdentifiers = running
+        self.environment = environment
+    }
+
+    var access: WhisperServerProcessAccess {
+        WhisperServerProcessAccess(
+            currentProcessIdentifier: { 999 },
+            isRunning: { [self] processIdentifier in
+                isRunning(processIdentifier)
+            },
+            hasEnvironmentEntry: { [self] processIdentifier, key, value in
+                environmentValue(processIdentifier: processIdentifier, key: key) == value
+            },
+            sendSignal: { [self] processIdentifier, signal in
+                lock.lock()
+                sentSignals.append((processIdentifier, signal))
+                runningProcessIdentifiers.remove(processIdentifier)
+                lock.unlock()
+            }
+        )
+    }
+
+    var signalCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return sentSignals.count
+    }
+
+    func isRunning(_ processIdentifier: Int32) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return runningProcessIdentifiers.contains(processIdentifier)
+    }
+
+    private func environmentValue(processIdentifier: Int32, key: String) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return environment[processIdentifier]?[key]
+    }
 }
