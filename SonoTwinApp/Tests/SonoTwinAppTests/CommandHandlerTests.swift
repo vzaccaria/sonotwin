@@ -62,6 +62,29 @@ struct CommandHandlerTests {
         #expect(state.transcriptionLanguage == "it")
     }
 
+    @Test @MainActor
+    func freshSettingsDefaultToAutomaticLanguageDetection() {
+        let defaults = temporaryDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName(defaults)) }
+
+        let state = RecordingState(userDefaults: defaults)
+
+        #expect(state.transcriptionLanguage == "auto")
+    }
+
+    @Test @MainActor
+    func persistsExplicitAndAutomaticLanguageChoices() {
+        let defaults = temporaryDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName(defaults)) }
+
+        let state = RecordingState(userDefaults: defaults)
+        state.transcriptionLanguage = "it"
+        #expect(RecordingState(userDefaults: defaults).transcriptionLanguage == "it")
+
+        state.transcriptionLanguage = "auto"
+        #expect(RecordingState(userDefaults: defaults).transcriptionLanguage == "auto")
+    }
+
     private func temporaryDefaults() -> UserDefaults {
         let name = "CommandHandlerTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!

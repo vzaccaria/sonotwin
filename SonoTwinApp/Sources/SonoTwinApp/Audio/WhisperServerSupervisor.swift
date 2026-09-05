@@ -82,6 +82,7 @@ actor WhisperServerSupervisor {
         case invalidChunk(String)
         case requestFailed(String)
         case invalidResponse(Int, String)
+        case unexpectedTask(String)
         case malformedResponse(String)
         case stopped
 
@@ -109,6 +110,8 @@ actor WhisperServerSupervisor {
                 return "Whisper inference request failed: \(message)"
             case .invalidResponse(let status, let body):
                 return "whisper-server returned HTTP \(status): \(body)"
+            case .unexpectedTask(let task):
+                return "whisper-server returned the \(task) task instead of transcription"
             case .malformedResponse(let message):
                 return "Invalid whisper-server response: \(message)"
             case .stopped:
@@ -126,6 +129,7 @@ actor WhisperServerSupervisor {
             let text: String
         }
 
+        let task: String?
         let language: String
         let duration: Double?
         let text: String
@@ -439,7 +443,7 @@ actor WhisperServerSupervisor {
             throw SupervisorError.unavailableState("missing server port")
         }
 
-        let language = resolvedLanguage ?? configuration.requestedLanguage
+        let language = configuration.requestedLanguage
         let boundary = "SonoTwin-\(UUID().uuidString)"
         let audio: Data
         do {
@@ -454,8 +458,9 @@ actor WhisperServerSupervisor {
             audio: audio,
             fields: [
                 "language": language,
+                "no_language_probabilities": "true",
                 "response_format": "verbose_json",
-                "no_language_probabilities": "true"
+                "translate": "false"
             ]
         )
         let inferenceURL = URL(string: "http://127.0.0.1:\(port)/inference")!
@@ -494,6 +499,10 @@ actor WhisperServerSupervisor {
             serverResponse = try JSONDecoder().decode(ServerResponse.self, from: responseData)
         } catch {
             throw SupervisorError.malformedResponse(error.localizedDescription)
+        }
+
+        if let task = serverResponse.task?.lowercased(), task != "transcribe" {
+            throw SupervisorError.unexpectedTask(task)
         }
 
         let normalizedText = serverResponse.text

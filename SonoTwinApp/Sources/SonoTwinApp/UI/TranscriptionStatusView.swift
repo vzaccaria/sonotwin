@@ -3,7 +3,6 @@ import SwiftUI
 
 struct TranscriptionStatusView: View {
     @Bindable var state: RecordingState
-    @State private var settingsExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -41,6 +40,20 @@ struct TranscriptionStatusView: View {
                     .foregroundStyle(.secondary)
             }
 
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Spoken language")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                Picker("Spoken language", selection: $state.transcriptionLanguage) {
+                    Text("Italian").tag("it")
+                    Text("English").tag("en")
+                    Text("Automatic").tag("auto")
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+            }
+            .disabled(state.isRecording)
+
             if let error = state.transcriptionError {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2)
@@ -72,19 +85,12 @@ struct TranscriptionStatusView: View {
                 CopyablePathRow(label: "Session", url: bundleURL)
             }
 
-            DisclosureGroup("Server settings", isExpanded: $settingsExpanded) {
-                VStack(alignment: .leading, spacing: 8) {
-                    pathField("Executable", text: $state.whisperExecutablePath)
-                    pathField("Model", text: $state.whisperModelPath)
-                    HStack {
-                        Text("Language")
-                            .frame(width: 62, alignment: .leading)
-                        TextField("auto", text: $state.transcriptionLanguage)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                }
-                .font(.caption)
-                .padding(.top, 6)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Server settings")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                pathField("Executable", text: $state.whisperExecutablePath)
+                pathField("Model", text: $state.whisperModelPath)
             }
             .font(.caption)
             .disabled(state.isRecording)
@@ -95,7 +101,7 @@ struct TranscriptionStatusView: View {
         HStack {
             Text(label)
                 .frame(width: 62, alignment: .leading)
-            TextField("Path", text: text)
+            TextField("Not configured", text: text)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1)
         }

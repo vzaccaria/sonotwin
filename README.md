@@ -172,7 +172,7 @@ SonoTwinApp/Sources/SonoTwinApp/
 
 **TranscriptionStatusView**
 
-- Enables local transcription and edits the executable, model, and language settings
+- Enables local transcription with an always-visible Automatic (default), Italian, or English selector and editable server/model paths; Automatic detects every chunk independently and never requests translation
 - Shows server health, lifecycle, backlog, lag, last sequence, and actionable errors
 - Provides selectable paths plus Copy and Show in Finder actions for recording and transcript outputs
 

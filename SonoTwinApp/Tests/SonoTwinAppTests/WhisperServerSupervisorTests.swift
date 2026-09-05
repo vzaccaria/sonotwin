@@ -83,6 +83,41 @@ struct WhisperServerSupervisorTests {
     }
 
     @Test
+    func explicitlyRequestsItalianTranscriptionAndRejectsTranslation() async throws {
+        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") else { return }
+        let fixture = try FakeWhisperFixture()
+        defer { fixture.remove() }
+
+        let supervisor = try WhisperServerSupervisor(
+            configuration: fixture.configuration(requestedLanguage: "it")
+        )
+        try await supervisor.start()
+        do {
+            let italian = try await supervisor.transcribe(
+                fixture.request(named: "italian.wav", source: .microphone, sequence: 0)
+            )
+            #expect(italian.language == "italian")
+            #expect(italian.text == "active=1")
+
+            do {
+                _ = try await supervisor.transcribe(
+                    fixture.request(named: "translated.wav", source: .microphone, sequence: 1)
+                )
+                Issue.record("a translated response must never be accepted as transcription")
+            } catch {
+                #expect(
+                    (error as? WhisperServerSupervisor.SupervisorError)
+                        == .unexpectedTask("translate")
+                )
+            }
+            await supervisor.stop()
+        } catch {
+            await supervisor.stop()
+            throw error
+        }
+    }
+
+    @Test
     func reportsMissingExecutableAndModel() async throws {
         let root = temporaryDirectory()
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -189,12 +224,13 @@ struct WhisperServerSupervisorTests {
               let wavPath = environment["WHISPER_TEST_WAV"] else {
             return
         }
+        let requestedLanguage = environment["WHISPER_TEST_LANGUAGE"] ?? "auto"
 
         let supervisor = try WhisperServerSupervisor(
             configuration: .init(
                 executableURL: URL(fileURLWithPath: executablePath),
                 modelURL: URL(fileURLWithPath: modelPath),
-                requestedLanguage: "auto",
+                requestedLanguage: requestedLanguage,
                 startupTimeout: 10,
                 requestTimeout: 15,
                 shutdownTimeout: 3
@@ -216,8 +252,18 @@ struct WhisperServerSupervisorTests {
             #expect(inference.source == .microphone)
             #expect(!inference.language.isEmpty)
             #expect(!inference.text.isEmpty)
+            if let expectedText = environment["WHISPER_EXPECTED_TEXT"] {
+                #expect(inference.text.localizedCaseInsensitiveContains(expectedText))
+            }
+            if let expectedLanguage = environment["WHISPER_EXPECTED_LANGUAGE"] {
+                #expect(inference.language.caseInsensitiveCompare(expectedLanguage) == .orderedSame)
+            }
             #expect(!inference.segments.isEmpty)
-            #expect((await supervisor.snapshot()).resolvedLanguage == inference.language)
+            if requestedLanguage == "auto" {
+                #expect((await supervisor.snapshot()).resolvedLanguage == inference.language)
+            } else {
+                #expect((await supervisor.snapshot()).resolvedLanguage == nil)
+            }
             await supervisor.stop()
             #expect((await supervisor.snapshot()).state == .stopped)
         } catch {
@@ -293,12 +339,13 @@ struct FakeWhisperFixture {
     }
 
     func configuration(
-        startupTimeout: TimeInterval = 2
+        startupTimeout: TimeInterval = 2,
+        requestedLanguage: String = "auto"
     ) -> WhisperServerSupervisor.Configuration {
         .init(
             executableURL: executableURL,
             modelURL: modelURL,
-            requestedLanguage: "auto",
+            requestedLanguage: requestedLanguage,
             threads: 1,
             startupTimeout: startupTimeout,
             requestTimeout: 2,
@@ -343,6 +390,7 @@ struct FakeWhisperFixture {
     host = argument("--host")
     port = int(argument("--port"))
     model = argument("--model")
+    requested_language = argument("--language")
     ready = "never-ready" not in model
     active = 0
     active_lock = threading.Lock()
@@ -369,10 +417,29 @@ struct FakeWhisperFixture {
             global active
             length = int(self.headers.get("Content-Length", "0"))
             body = self.rfile.read(length)
+            if b'name="translate"\\r\\n\\r\\nfalse\\r\\n' not in body:
+                self.send_json(422, {"error": "translate=false is required"})
+                return
+            language_field = (
+                'name="language"\\r\\n\\r\\n' + requested_language + '\\r\\n'
+            ).encode("utf-8")
+            if language_field not in body:
+                self.send_json(422, {"error": "request language must match configuration"})
+                return
             if b'filename="crash.wav"' in body:
                 os._exit(7)
+            if b'filename="translated.wav"' in body:
+                self.send_json(200, {
+                    "task": "translate",
+                    "language": "italian",
+                    "duration": 1.0,
+                    "text": "translated text",
+                    "segments": []
+                })
+                return
             if b'filename="silent.wav"' in body:
                 self.send_json(200, {
+                    "task": "transcribe",
                     "language": "english",
                     "duration": 1.0,
                     "text": "",
@@ -386,6 +453,7 @@ struct FakeWhisperFixture {
             with active_lock:
                 active -= 1
             self.send_json(200, {
+                "task": "transcribe",
                 "language": "italian",
                 "duration": 1.0,
                 "text": "active=" + str(observed_active),
