@@ -29,5 +29,5 @@ SonoTwin is a macOS 14+ menu bar application that records system audio, micropho
 - Keep UI-visible state and AppKit/SwiftUI updates on `MainActor`.
 - Keep real-time audio callbacks bounded; synchronize shared callback state explicitly and avoid avoidable allocation.
 - Preserve the JSON socket contract documented in `README.md` when changing app or CLI commands.
-- Development builds are unsigned/ad-hoc: rebuilding can invalidate Screen Recording and Microphone permissions.
+- `make build` signs the complete bundle as `com.sonotwin.app`; set `SONOTWIN_SIGNING_IDENTITY` to a stable Apple Development identity because ad-hoc rebuilds invalidate TCC grants.
 - Track work only in `bd`; keep strategy and session handoff only in `pm/`.

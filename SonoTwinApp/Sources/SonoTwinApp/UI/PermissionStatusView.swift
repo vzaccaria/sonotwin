@@ -14,37 +14,59 @@ struct PermissionStatusView: View {
     @Bindable var permissionManager: PermissionManager
 
     var body: some View {
-        // HStack arranges the two permission indicators side by side.
-        HStack(spacing: 12) {
-
-            // Microphone permission indicator
-            PermissionIndicator(
-                label: "Microphone",
-                state: permissionManager.microphonePermission,
-                onRequest: {
-                    // Task creates an async context for the await call.
-                    Task {
-                        await permissionManager.requestMicrophonePermission()
+        VStack(spacing: 7) {
+            HStack(spacing: 12) {
+                PermissionIndicator(
+                    label: "Microphone",
+                    state: permissionManager.microphonePermission,
+                    onRequest: {
+                        Task {
+                            await permissionManager.requestMicrophonePermission()
+                        }
+                    },
+                    onOpenSettings: {
+                        permissionManager.openSystemSettings(for: "microphone")
                     }
-                },
-                onOpenSettings: {
-                    permissionManager.openSystemSettings(for: "microphone")
-                }
-            )
+                )
 
-            // Screen recording permission indicator
-            PermissionIndicator(
-                label: "Screen Recording",
-                state: permissionManager.screenRecordingPermission,
-                onRequest: {
-                    Task {
-                        await permissionManager.requestScreenRecordingPermission()
+                PermissionIndicator(
+                    label: "System Recording",
+                    state: permissionManager.screenRecordingPermission,
+                    onRequest: {
+                        Task {
+                            await permissionManager.requestScreenRecordingPermission()
+                        }
+                    },
+                    onOpenSettings: {
+                        permissionManager.openSystemSettings(for: "screenRecording")
                     }
-                },
-                onOpenSettings: {
-                    permissionManager.openSystemSettings(for: "screenRecording")
+                )
+            }
+
+            if permissionManager.screenRecordingPermission == .denied {
+                HStack(spacing: 6) {
+                    Text("Already enabled? Recheck, then quit and reopen SonoTwin if macOS still reports it disabled.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 4)
+
+                    if permissionManager.isRefreshingScreenRecording {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button("Recheck") {
+                            Task {
+                                await permissionManager.refreshPermissions()
+                            }
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption2)
+                    }
                 }
-            )
+                .help(permissionManager.screenRecordingDiagnostic ?? "")
+            }
         }
     }
 }

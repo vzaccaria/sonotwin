@@ -33,6 +33,9 @@ From the project root:
 # Build
 make build
 
+# Recommended for permissions that survive rebuilds
+SONOTWIN_SIGNING_IDENTITY="Apple Development: Your Name (TEAMID)" make build
+
 # Test
 make test
 
@@ -253,3 +256,16 @@ The app requires:
   via ScreenCaptureKit
 
 Both are declared in `SonoTwinApp.app/Contents/Info.plist`.
+
+SonoTwin refreshes permission state whenever the app becomes active or its
+popover opens. If System Recording is already enabled but still appears denied:
+
+1. Quit SonoTwin completely; macOS may not apply a Screen Recording change to
+   an already-running process.
+2. If the app's signing identity changed, run `make reset-screen-permission`.
+3. Reopen SonoTwin and grant **Screen & System Audio Recording** once.
+
+`make build` signs the complete bundle as `com.sonotwin.app`. By default it uses
+an ad-hoc signature, whose privacy grant can become stale after every rebuild.
+For development, set `SONOTWIN_SIGNING_IDENTITY` to a stable Apple Development
+identity reported by `security find-identity -v -p codesigning`.

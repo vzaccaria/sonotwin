@@ -95,11 +95,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         socketServer = SocketServer(recordingState: state)
         socketServer?.start()
 
-        // MARK: Check Permissions
-        // Request/check permissions when the app first launches.
-        Task {
-            await state.permissionManager.refreshPermissions()
-        }
+        refreshPermissions()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        refreshPermissions()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -129,12 +129,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            refreshPermissions()
             // Show the popover attached to the menu bar button.
             // .minY means it appears below the button.
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
 
             // Bring our app to the front so the popover can receive keyboard focus.
             NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func refreshPermissions() {
+        guard let state = recordingState else { return }
+        Task { @MainActor in
+            await state.permissionManager.refreshPermissions()
         }
     }
 
