@@ -139,6 +139,47 @@ actor TranscriptionRuntime {
     }
 
     @discardableResult
+    func recoverSession(
+        bundleURL: URL,
+        settings: Settings
+    ) async throws -> Snapshot {
+        guard workerTask == nil, sessionDrainTask == nil else {
+            throw RuntimeError.sessionAlreadyActive
+        }
+
+        let store = try TranscriptSessionStore.reopen(bundleURL: bundleURL)
+        let pendingChunks = try await store.pendingChunks()
+        try await ensureServer(settings: settings)
+        guard let supervisor else {
+            throw RuntimeError.serverUnavailable
+        }
+
+        let queue = TranscriptionEventQueue { [weak self] depth in
+            Task { await self?.updateBacklog(depth) }
+        }
+        let storeSnapshot = await store.snapshot()
+        self.store = store
+        self.queue = queue
+        self.bundleURL = storeSnapshot.bundleURL
+        self.transcriptURL = storeSnapshot.transcriptURL
+        self.jsonlURL = storeSnapshot.jsonlURL
+        self.backlog = pendingChunks.count
+        self.lagMilliseconds = storeSnapshot.lagMilliseconds
+        self.lastCompletedSequence = storeSnapshot.lastSequence
+        self.sessionError = nil
+        self.sessionHadFailure = false
+        self.state = .active
+        self.workerTask = Task { [weak self, stream = queue.stream] in
+            await self?.consume(stream, store: store, supervisor: supervisor, queue: queue)
+        }
+        for chunk in pendingChunks {
+            queue.yield(.chunk(chunk))
+        }
+        publishSnapshot()
+        return beginFinishingSession()
+    }
+
+    @discardableResult
     func beginFinishingSession() -> Snapshot {
         guard sessionDrainTask == nil,
               let queue,

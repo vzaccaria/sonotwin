@@ -91,6 +91,88 @@ struct TranscriptionRuntimeTests {
     }
 
     @Test
+    func resumesPendingChunksAndRepairsTrailingJSONL() async throws {
+        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") else { return }
+        let fixture = try FakeWhisperFixture()
+        defer { fixture.remove() }
+        let bundleURL = fixture.root.appendingPathComponent("interrupted.sonotwin")
+        let firstChunk = try recoveryChunk(
+            bundleURL: bundleURL,
+            source: .system,
+            sequence: 0,
+            startMilliseconds: 0,
+            endMilliseconds: 5_000
+        )
+        let pendingChunk = try recoveryChunk(
+            bundleURL: bundleURL,
+            source: .system,
+            sequence: 1,
+            startMilliseconds: 4_000,
+            endMilliseconds: 10_000
+        )
+
+        do {
+            let store = try TranscriptSessionStore(
+                configuration: .init(
+                    bundleURL: bundleURL,
+                    recordingURL: fixture.root.appendingPathComponent("interrupted.wav"),
+                    executableURL: fixture.executableURL,
+                    modelURL: fixture.modelURL,
+                    requestedLanguage: "auto"
+                )
+            )
+            try await store.markProduced(firstChunk)
+            _ = try await store.append(
+                .init(
+                    source: .system,
+                    chunk: firstChunk,
+                    language: "english",
+                    durationSeconds: 1,
+                    text: "first",
+                    segments: [.init(startSeconds: 0, endSeconds: 1, text: "first")]
+                )
+            )
+            try await store.markProduced(pendingChunk)
+            try await store.setLifecycle(.incomplete, error: "interrupted")
+        }
+
+        let jsonlURL = bundleURL.appendingPathComponent("transcript.jsonl")
+        let appendHandle = try FileHandle(forWritingTo: jsonlURL)
+        try appendHandle.seekToEnd()
+        try appendHandle.write(contentsOf: Data("{partial".utf8))
+        try appendHandle.close()
+
+        let runtime = TranscriptionRuntime()
+        let draining = try await runtime.recoverSession(
+            bundleURL: bundleURL,
+            settings: .init(
+                executableURL: fixture.executableURL,
+                modelURL: fixture.modelURL,
+                requestedLanguage: "auto"
+            )
+        )
+        #expect(draining.state == .draining)
+        await runtime.finishSession()
+
+        let snapshot = await runtime.snapshot()
+        #expect(snapshot.state == .complete)
+        #expect(snapshot.backlog == 0)
+        #expect(snapshot.lastCompletedSequence == 1)
+        let repairedJSONL = try Data(contentsOf: jsonlURL)
+        let records = try repairedJSONL.split(separator: 0x0A).map {
+            try JSONDecoder().decode(TranscriptSessionStore.Record.self, from: Data($0))
+        }
+        #expect(records.map(\.seq) == [0, 1])
+        #expect(records.map(\.chunkSeq) == [0, 1])
+        #expect(records.map(\.text) == ["first", "prova"])
+        #expect(!String(decoding: repairedJSONL, as: UTF8.self).contains("partial"))
+        #expect(!FileManager.default.fileExists(
+            atPath: bundleURL.appendingPathComponent("chunks").path
+        ))
+        await runtime.shutdown()
+    }
+
+    @Test
     func invalidServerConfigurationBecomesActionableFailure() async throws {
         let statuses = RuntimeStatusCollector()
         let runtime = TranscriptionRuntime { statuses.record($0) }
@@ -141,6 +223,37 @@ struct TranscriptionRuntimeTests {
         #expect(snapshot.serverHealthy)
         await runtime.shutdown()
         #expect((await runtime.snapshot()).serverState == .stopped)
+    }
+
+    private func recoveryChunk(
+        bundleURL: URL,
+        source: TranscriptionSource,
+        sequence: Int,
+        startMilliseconds: Int64,
+        endMilliseconds: Int64
+    ) throws -> TranscriptionChunkPipeline.Chunk {
+        let sourceURL = bundleURL
+            .appendingPathComponent("chunks", isDirectory: true)
+            .appendingPathComponent(source.rawValue, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: sourceURL,
+            withIntermediateDirectories: true
+        )
+        let name = String(
+            format: "%06d_%012lld_%012lld.wav",
+            sequence,
+            startMilliseconds,
+            endMilliseconds
+        )
+        let url = sourceURL.appendingPathComponent(name)
+        try Data("RIFF-fake".utf8).write(to: url)
+        return .init(
+            source: source,
+            sequence: sequence,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
+            url: url
+        )
     }
 
     private func stereoPCM(seconds: Int, sampleRate: Int = 48_000) -> Data {

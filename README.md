@@ -264,6 +264,11 @@ backlog until the independent transcript task reaches `"complete"` or
 `"failed"`. A new transcription-enabled recording is rejected while that drain
 is active; audio-only recording remains available.
 
+During a transcribed session, SonoTwin persists the active bundle path. After
+an unexpected app termination, the next launch reclaims its orphaned server,
+repairs a trailing partial JSONL record, and drains any untranscribed atomic
+chunks before clearing the recovery pointer.
+
 ## Key Swift Concepts Used
 
 - **@Observable** (macOS 14+) - Modern observation for SwiftUI

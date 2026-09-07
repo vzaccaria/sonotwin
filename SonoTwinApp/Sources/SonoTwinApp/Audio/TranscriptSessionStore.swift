@@ -10,6 +10,20 @@ actor TranscriptSessionStore {
         case failed
     }
 
+    enum RecoveryError: Error, Equatable, LocalizedError {
+        case missingManifest(String)
+        case invalidChunkName(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .missingManifest(let path):
+                return "Transcript recovery manifest is missing at \(path)"
+            case .invalidChunkName(let path):
+                return "Transcript recovery chunk has an invalid name at \(path)"
+            }
+        }
+    }
+
     struct Configuration: Sendable {
         let bundleURL: URL
         let recordingURL: URL
@@ -115,6 +129,28 @@ actor TranscriptSessionStore {
     private var nextSequence: Int
     private var committedHorizons: [TranscriptionSource: Int64]
     private var recentText: [TranscriptionSource: String]
+
+    static func reopen(bundleURL: URL) throws -> TranscriptSessionStore {
+        let manifestURL = bundleURL.appendingPathComponent("session.json")
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            throw RecoveryError.missingManifest(manifestURL.path)
+        }
+        let manifest = try JSONDecoder().decode(
+            Manifest.self,
+            from: Data(contentsOf: manifestURL)
+        )
+        return try TranscriptSessionStore(
+            configuration: .init(
+                bundleURL: bundleURL,
+                recordingURL: URL(fileURLWithPath: manifest.recordingPath),
+                executableURL: URL(fileURLWithPath: manifest.executablePath),
+                modelURL: URL(fileURLWithPath: manifest.modelPath),
+                requestedLanguage: manifest.requestedLanguage,
+                cadenceMilliseconds: manifest.cadenceMs,
+                overlapMilliseconds: manifest.overlapMs
+            )
+        )
+    }
 
     init(configuration: Configuration) throws {
         self.configuration = configuration
@@ -327,6 +363,60 @@ actor TranscriptSessionStore {
             lagMilliseconds: max(0, lag),
             error: manifest.error
         )
+    }
+
+    func pendingChunks() throws -> [TranscriptionChunkPipeline.Chunk] {
+        var pending: [TranscriptionChunkPipeline.Chunk] = []
+        for source in TranscriptionSource.allCases {
+            let sourceURL = chunksURL.appendingPathComponent(
+                source.rawValue,
+                isDirectory: true
+            )
+            guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+                continue
+            }
+            let chunkURLs = try FileManager.default.contentsOfDirectory(
+                at: sourceURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+            for chunkURL in chunkURLs
+            where chunkURL.pathExtension.lowercased() == "wav" {
+                let fields = chunkURL.deletingPathExtension().lastPathComponent
+                    .split(separator: "_", omittingEmptySubsequences: false)
+                guard fields.count == 3,
+                      let sequence = Int(fields[0]),
+                      let startMilliseconds = Int64(fields[1]),
+                      let endMilliseconds = Int64(fields[2]),
+                      sequence >= 0,
+                      startMilliseconds >= 0,
+                      endMilliseconds > startMilliseconds else {
+                    throw RecoveryError.invalidChunkName(chunkURL.path)
+                }
+                let chunk = TranscriptionChunkPipeline.Chunk(
+                    source: source,
+                    sequence: sequence,
+                    startMilliseconds: startMilliseconds,
+                    endMilliseconds: endMilliseconds,
+                    url: chunkURL
+                )
+                if !isTranscribed(chunk) {
+                    pending.append(chunk)
+                }
+            }
+        }
+        return pending.sorted { lhs, rhs in
+            if lhs.endMilliseconds != rhs.endMilliseconds {
+                return lhs.endMilliseconds < rhs.endMilliseconds
+            }
+            if lhs.startMilliseconds != rhs.startMilliseconds {
+                return lhs.startMilliseconds < rhs.startMilliseconds
+            }
+            if lhs.source != rhs.source {
+                return lhs.source.rawValue < rhs.source.rawValue
+            }
+            return lhs.sequence < rhs.sequence
+        }
     }
 
     func removeChunksAfterCompletion() throws {

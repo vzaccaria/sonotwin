@@ -21,8 +21,13 @@ protocol TranscriptionRuntimeProtocol: Actor {
         sources: Set<TranscriptionSource>,
         settings: TranscriptionRuntime.Settings
     ) async throws -> SourceTranscriptionPipelines
+    func recoverSession(
+        bundleURL: URL,
+        settings: TranscriptionRuntime.Settings
+    ) async throws -> TranscriptionRuntime.Snapshot
     func beginFinishingSession() -> TranscriptionRuntime.Snapshot
     func finishSession() async
+    func snapshot() -> TranscriptionRuntime.Snapshot
     func shutdown() async
 }
 
@@ -41,6 +46,8 @@ extension TranscriptionRuntime: TranscriptionRuntimeProtocol {}
 @MainActor
 final class RecordingState {
     private let userDefaults: UserDefaults
+    static let activeTranscriptionBundlePathKey = "activeTranscriptionBundlePath"
+
 
     // MARK: - Recording Status
     // private(set) means: readable from outside, but only writable from inside this class.
@@ -131,6 +138,36 @@ final class RecordingState {
 
     func updateTranscriptionStatus(_ snapshot: TranscriptionRuntime.Snapshot) {
         transcriptionSnapshot = snapshot
+        if snapshot.state == .complete {
+            userDefaults.removeObject(forKey: Self.activeTranscriptionBundlePathKey)
+        }
+    }
+
+    func recoverTranscriptionSession() async {
+        guard !isRecording,
+              let bundlePath = userDefaults.string(
+                forKey: Self.activeTranscriptionBundlePathKey
+              ),
+              !bundlePath.isEmpty else {
+            return
+        }
+        let bundleURL = URL(fileURLWithPath: bundlePath)
+        guard FileManager.default.fileExists(atPath: bundleURL.path) else {
+            userDefaults.removeObject(forKey: Self.activeTranscriptionBundlePathKey)
+            return
+        }
+        guard let transcriptionRuntime else { return }
+
+        do {
+            transcriptionConfigurationError = nil
+            let snapshot = try await transcriptionRuntime.recoverSession(
+                bundleURL: bundleURL,
+                settings: try transcriptionSettings()
+            )
+            updateTranscriptionStatus(snapshot)
+        } catch {
+            transcriptionConfigurationError = error.localizedDescription
+        }
     }
 
     func checkTranscriptionServer() async {
@@ -174,6 +211,13 @@ final class RecordingState {
                     settings: try transcriptionSettings()
                 )
                 sessionTranscriptionActive = true
+                let snapshot = await runtime.snapshot()
+                if let bundleURL = snapshot.bundleURL {
+                    userDefaults.set(
+                        bundleURL.path,
+                        forKey: Self.activeTranscriptionBundlePathKey
+                    )
+                }
             } catch let error as TranscriptionRuntime.RuntimeError
                 where error == .sessionAlreadyActive {
                 transcriptionConfigurationError =

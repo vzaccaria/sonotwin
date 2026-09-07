@@ -71,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             } catch {
                 print("WhisperServerSupervisor: Orphan cleanup failed: \(error.localizedDescription)")
             }
+            await state.recoverTranscriptionSession()
         }
 
         // MARK: Connect Engine to State

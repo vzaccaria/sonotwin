@@ -99,6 +99,11 @@ struct CommandHandlerTests {
         state.setTranscriptionRuntime(runtime)
         let output = root.appendingPathComponent("meeting.wav")
         try await state.startRecording(outputPath: output)
+        let bundleURL = root.appendingPathComponent("meeting.sonotwin")
+        #expect(
+            defaults.string(forKey: RecordingState.activeTranscriptionBundlePathKey)
+                == bundleURL.path
+        )
 
         let stopData = await CommandHandler(recordingState: state).handle(
             Data(#"{"action":"stop"}"#.utf8)
@@ -135,6 +140,23 @@ struct CommandHandlerTests {
 
         try await pipelines.finish()
         await state.shutdownTranscription()
+        state.updateTranscriptionStatus(
+            .init(
+                state: .complete,
+                serverState: .ready,
+                serverHealthy: true,
+                bundleURL: bundleURL,
+                transcriptURL: bundleURL.appendingPathComponent("transcript.txt"),
+                jsonlURL: bundleURL.appendingPathComponent("transcript.jsonl"),
+                lastCompletedSequence: 7,
+                backlog: 0,
+                lagMilliseconds: 0,
+                error: nil
+            )
+        )
+        #expect(
+            defaults.string(forKey: RecordingState.activeTranscriptionBundlePathKey) == nil
+        )
     }
 
     @Test @MainActor
@@ -232,6 +254,13 @@ private actor TranscriptionRuntimeStub: TranscriptionRuntimeProtocol {
         return pipelines
     }
 
+    func recoverSession(
+        bundleURL: URL,
+        settings: TranscriptionRuntime.Settings
+    ) async throws -> TranscriptionRuntime.Snapshot {
+        drainingSnapshot
+    }
+
     func beginFinishingSession() -> TranscriptionRuntime.Snapshot {
         beginCount += 1
         return drainingSnapshot
@@ -239,6 +268,10 @@ private actor TranscriptionRuntimeStub: TranscriptionRuntimeProtocol {
 
     func finishSession() async {
         finishCount += 1
+    }
+
+    func snapshot() -> TranscriptionRuntime.Snapshot {
+        drainingSnapshot
     }
 
     func shutdown() async {}
