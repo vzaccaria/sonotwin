@@ -10,6 +10,6 @@ Parked: none.
 
 ## Handoff
 
-Written: 2026-09-07 10:59 · OpenAI Codex
+Written: 2026-09-07 13:40 · OpenAI Codex
 
-Done: closed `audioscribe-8fi.7` and its parent epic after the reference-Mac latency, degradation, recovery, and contextual-skill matrix passed. Restart recovery now persists the active transcript bundle, repairs a trailing partial JSONL record, resumes pending atomic chunks, and clears recovery state after completion. State: full suite 31/31 passes; `make debug` passes; stable-signed release build passes; live socket status is idle. Next: no active tracked work. Gotchas: release builds must use the local `SonoTwin Local Development` signing identity so macOS TCC grants survive rebuilds; never commit `SonoTwinApp/.build/`. Blockers: none.
+Done: closed `audioscribe-y4u`; plain `make build` now signs with the local `SonoTwin Local Development` identity by default, preserving the existing microphone and ScreenCapture TCC grants across rebuilds. State: release build, strict code-signature verification, dual-source permission smoke, and live socket status passed; app is idle with transcription enabled and no server loaded. Next: no active tracked work. Gotchas: this workstation must retain the named certificate; other machines without it can explicitly set `SONOTWIN_SIGNING_IDENTITY=-`; never commit `SonoTwinApp/.build/` or generated bundle artifacts. Blockers: none.

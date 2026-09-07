@@ -2,7 +2,7 @@
 
 APP_BUNDLE := SonoTwinApp/SonoTwinApp.app
 BUNDLE_IDENTIFIER := com.sonotwin.app
-SONOTWIN_SIGNING_IDENTITY ?= -
+SONOTWIN_SIGNING_IDENTITY ?= SonoTwin Local Development
 
 # Default target
 all: build
