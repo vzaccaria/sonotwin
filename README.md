@@ -23,6 +23,7 @@ creates a sibling `<recording>.sonotwin/` session containing `transcript.txt`,
   permissions
 - **CLI Control** - Control recordings via `sonotwin-ctl` command-line tool
 - **Mixed Recording** - Record system audio, microphone, or both simultaneously
+- **Microphone Selection** - Choose the input device in the popover (persisted; falls back to the system default when it is not connected). The device actually captured is shown while recording and by `sonotwin-ctl status`. Select headsets explicitly: during calls macOS may route them only transiently, leaving the system default on the built-in mic, which is muted with the lid closed
 - **Local Transcription** - Supervises `whisper-server`, keeps microphone and system speech source-tagged, and exposes health, backlog, errors, and copyable output paths
 
 ## Build & Run
@@ -241,6 +242,7 @@ SonoTwinApp/Sources/SonoTwinApp/
   "recording": true,
   "elapsedSeconds": 42,
   "outputPath": "/path/to/file.wav",
+  "microphoneDevice": "AirPods Pro",
   "error": null,
   "transcription": {
     "enabled": true,

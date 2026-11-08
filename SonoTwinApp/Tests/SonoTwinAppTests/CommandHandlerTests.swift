@@ -207,10 +207,12 @@ private actor RecordingEngineStub: RecordingEngineProtocol {
         to outputURL: URL,
         recordSystemAudio: Bool,
         recordMicrophone: Bool,
+        microphoneDeviceID: String?,
         duration: TimeInterval?,
         transcriptionPipelines: SourceTranscriptionPipelines?
-    ) async throws {
+    ) async throws -> String? {
         startCount += 1
+        return nil
     }
 
     func stopRecording() async {

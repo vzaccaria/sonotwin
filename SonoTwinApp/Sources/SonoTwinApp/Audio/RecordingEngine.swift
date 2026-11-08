@@ -57,15 +57,19 @@ actor RecordingEngine {
     ///   - outputPath: Where to save the .wav file
     ///   - recordSystemAudio: Whether to capture system audio
     ///   - recordMicrophone: Whether to capture microphone
+    ///   - microphoneDeviceID: Input device to capture (nil = system default)
     ///   - duration: Optional auto-stop duration (nil = manual stop)
+    /// - Returns: Name of the microphone actually captured, nil when not recording it
+    @discardableResult
     func startRecording(
         to outputPath: URL,
         recordSystemAudio: Bool,
         recordMicrophone: Bool,
+        microphoneDeviceID: String?,
         duration: TimeInterval?,
         transcriptionPipelines: SourceTranscriptionPipelines?
-    ) async throws {
-        guard !isRecording else { return }
+    ) async throws -> String? {
+        guard !isRecording else { return nil }
 
         let newWriter = try WAVWriter(outputPath: outputPath)
         self.writer = newWriter
@@ -77,6 +81,7 @@ actor RecordingEngine {
         // MARK: Setup Audio Pipeline
         // The pipeline depends on which sources are selected.
         let needsMixing = recordSystemAudio && recordMicrophone
+        var microphoneName: String?
 
         if needsMixing {
             // MARK: Combined Mode (System + Mic)
@@ -99,7 +104,7 @@ actor RecordingEngine {
             }
 
             // Setup microphone capture.
-            let micCap = MicrophoneCapture()
+            let micCap = MicrophoneCapture(deviceID: microphoneDeviceID)
             micCap.onSamples = { [weak self] buffer in
                 let capturedAt = DispatchTime.now().uptimeNanoseconds
                 Task { [weak self] in
@@ -116,7 +121,7 @@ actor RecordingEngine {
 
             // Start both captures.
             try await sysCapture.start()
-            try micCap.start()
+            microphoneName = try micCap.start()
 
         } else if recordSystemAudio {
             // MARK: System Audio Only
@@ -136,7 +141,7 @@ actor RecordingEngine {
 
         } else if recordMicrophone {
             // MARK: Microphone Only
-            let micCap = MicrophoneCapture()
+            let micCap = MicrophoneCapture(deviceID: microphoneDeviceID)
             micCap.onSamples = { [weak self] buffer in
                 let capturedAt = DispatchTime.now().uptimeNanoseconds
                 Task { [weak self] in
@@ -148,7 +153,7 @@ actor RecordingEngine {
                 }
             }
             self.micCapture = micCap
-            try micCap.start()
+            microphoneName = try micCap.start()
         }
 
         isRecording = true
@@ -158,6 +163,7 @@ actor RecordingEngine {
         Task { [weak self] in
             await self?.levelUpdateLoop()
         }
+        return microphoneName
     }
 
     /// Stop recording and finalize output file.

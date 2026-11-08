@@ -40,6 +40,8 @@ struct CommandHandler {
         let recording: Bool
         let elapsedSeconds: Int?
         let outputPath: String?
+        /// Microphone captured by the current recording, or the one the next recording will use.
+        let microphoneDevice: String?
         let error: String?
         let transcription: TranscriptionStatus
     }
@@ -188,6 +190,9 @@ struct CommandHandler {
             elapsedSeconds: elapsedSeconds
                 ?? (recordingState.isRecording ? Int(recordingState.elapsedTime) : nil),
             outputPath: outputPath ?? recordingState.outputPath?.path,
+            microphoneDevice: recordingState.recordMicrophone
+                ? recordingState.activeMicrophoneName ?? recordingState.plannedMicrophoneName
+                : nil,
             error: error,
             transcription: TranscriptionStatus(
                 enabled: recordingState.transcriptionEnabled,

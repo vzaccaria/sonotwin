@@ -6,9 +6,10 @@ protocol RecordingEngineProtocol: Actor {
         to outputURL: URL,
         recordSystemAudio: Bool,
         recordMicrophone: Bool,
+        microphoneDeviceID: String?,
         duration: TimeInterval?,
         transcriptionPipelines: SourceTranscriptionPipelines?
-    ) async throws
+    ) async throws -> String?
     func stopRecording() async
 }
 
@@ -57,6 +58,8 @@ final class RecordingState {
     private(set) var isRecording = false
     private(set) var elapsedTime: TimeInterval = 0
     private(set) var outputPath: URL?
+    /// Name of the microphone captured by the current recording.
+    private(set) var activeMicrophoneName: String?
 
     // MARK: - Audio Levels (0.0 to 1.0)
     // These are updated ~30 times per second by the RecordingEngine.
@@ -74,6 +77,20 @@ final class RecordingState {
     var recordSystemAudio = true
     var recordMicrophone = true
     var duration: TimeInterval? = nil  // nil means "record until stopped"
+    /// `AVCaptureDevice.uniqueID` of the chosen microphone; empty = system default.
+    var microphoneDeviceID: String {
+        didSet { userDefaults.set(microphoneDeviceID, forKey: "microphoneDeviceID") }
+    }
+
+    /// Microphone the next recording will capture: the chosen device if it is
+    /// connected, otherwise the system default (the fallback `MicrophoneCapture` uses).
+    var plannedMicrophoneName: String? {
+        if !microphoneDeviceID.isEmpty,
+           let device = MicrophoneCapture.availableDevices().first(where: { $0.id == microphoneDeviceID }) {
+            return device.name
+        }
+        return MicrophoneCapture.systemDefaultDevice()?.name
+    }
 
     var transcriptionEnabled: Bool {
         didSet { userDefaults.set(transcriptionEnabled, forKey: "transcriptionEnabled") }
@@ -122,6 +139,7 @@ final class RecordingState {
         whisperModelPath = defaults.string(forKey: "whisperModelPath")
             ?? Self.discoverWhisperModel()
         transcriptionLanguage = defaults.string(forKey: "transcriptionLanguage") ?? "auto"
+        microphoneDeviceID = defaults.string(forKey: "microphoneDeviceID") ?? ""
     }
 
     // MARK: - Methods
@@ -231,10 +249,11 @@ final class RecordingState {
         }
 
         do {
-            try await engine.startRecording(
+            activeMicrophoneName = try await engine.startRecording(
                 to: path,
                 recordSystemAudio: recordSystemAudio,
                 recordMicrophone: recordMicrophone,
+                microphoneDeviceID: microphoneDeviceID.isEmpty ? nil : microphoneDeviceID,
                 duration: duration,
                 transcriptionPipelines: transcriptionPipelines
             )
@@ -277,6 +296,7 @@ final class RecordingState {
         // The archival WAV is complete at this point. Publish that fact before
         // starting the potentially long transcript drain.
         isRecording = false
+        activeMicrophoneName = nil
         systemAudioLevel = 0
         microphoneLevel = 0
         systemAudioPeak = 0

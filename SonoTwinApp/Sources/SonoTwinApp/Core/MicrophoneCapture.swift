@@ -38,14 +38,40 @@ final class MicrophoneCapture: NSObject, @unchecked Sendable, AVCaptureAudioData
     private var converter: AVAudioConverter?
     private var inputFormat: AVAudioFormat?
 
+    /// Requested input device (`AVCaptureDevice.uniqueID`); nil means system default.
+    private let deviceID: String?
+
     // MARK: - Initialization
 
-    init(sampleRate: Double = 48000, channels: UInt32 = 2) {
+    init(deviceID: String? = nil, sampleRate: Double = 48000, channels: UInt32 = 2) {
+        self.deviceID = deviceID
         self.sampleRate = sampleRate
         self.channels = channels
         // standardFormatWithSampleRate creates a standard float32 non-interleaved format.
         self.outputFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: channels)!
         super.init()
+    }
+
+    // MARK: - Device Discovery
+
+    struct Device: Hashable, Identifiable, Sendable {
+        let id: String  // AVCaptureDevice.uniqueID, stable across reconnections
+        let name: String
+    }
+
+    /// Audio input devices currently connected (built-in, USB, Bluetooth).
+    static func availableDevices() -> [Device] {
+        AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone, .external],
+            mediaType: .audio,
+            position: .unspecified
+        ).devices.map { Device(id: $0.uniqueID, name: $0.localizedName) }
+    }
+
+    /// The device macOS reports as default input. Calls may switch the system
+    /// input only transiently, so this is not necessarily the headset in use.
+    static func systemDefaultDevice() -> Device? {
+        AVCaptureDevice.default(for: .audio).map { Device(id: $0.uniqueID, name: $0.localizedName) }
     }
 
     // MARK: - Permission Handling
@@ -80,16 +106,19 @@ final class MicrophoneCapture: NSObject, @unchecked Sendable, AVCaptureAudioData
 
     // MARK: - Capture Control
 
-    /// Start capturing from the microphone.
+    /// Start capturing from the requested microphone, or the system default when
+    /// none was requested or the requested device is not connected.
+    /// Returns the name of the device actually captured.
     /// 'throws' because device access can fail.
-    func start() throws {
+    @discardableResult
+    func start() throws -> String {
         // MARK: Create Capture Session
         let session = AVCaptureSession()
         session.beginConfiguration()  // Batch configuration changes
 
         // MARK: Add Audio Input
-        // Get the default audio device (usually the system's selected mic).
-        guard let audioDevice = AVCaptureDevice.default(for: .audio) else {
+        let requestedDevice = deviceID.flatMap { AVCaptureDevice(uniqueID: $0) }
+        guard let audioDevice = requestedDevice ?? AVCaptureDevice.default(for: .audio) else {
             throw NSError(domain: "MicrophoneCapture", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "No audio device available"])
         }
@@ -128,6 +157,7 @@ final class MicrophoneCapture: NSObject, @unchecked Sendable, AVCaptureAudioData
 
         captureSession = session
         isRunning = true
+        return audioDevice.localizedName
     }
 
     /// Stop capturing.

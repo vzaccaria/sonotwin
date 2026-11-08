@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 // MARK: - RecordingControlsView
@@ -43,6 +44,13 @@ struct RecordingControlsView: View {
             }
             .font(.caption)
 
+            // MARK: Microphone Device
+            // Explicit choice: during calls macOS may route the headset only
+            // transiently, so the system default can be a muted built-in mic.
+            if state.recordMicrophone {
+                microphonePicker
+            }
+
             // MARK: Recording Status
             // Only shown while recording.
             if state.isRecording {
@@ -60,6 +68,12 @@ struct RecordingControlsView: View {
                         Text(state.formatElapsedTime())
                             .font(.system(.body, design: .monospaced))
                             .foregroundColor(.primary)
+                        if let mic = state.activeMicrophoneName {
+                            Label(mic, systemImage: "mic")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -92,6 +106,51 @@ struct RecordingControlsView: View {
                 CopyablePathRow(label: "Recording", url: path)
             }
         }
+    }
+
+    // MARK: - Microphone Picker
+
+    @State private var microphones: [MicrophoneCapture.Device] = []
+    @State private var systemDefaultMicrophone: MicrophoneCapture.Device?
+
+    private var savedMicrophoneMissing: Bool {
+        !state.microphoneDeviceID.isEmpty
+            && !microphones.contains { $0.id == state.microphoneDeviceID }
+    }
+
+    private var microphonePicker: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Picker(selection: $state.microphoneDeviceID) {
+                Text("System default (\(systemDefaultMicrophone?.name ?? "none"))").tag("")
+                ForEach(microphones) { device in
+                    Text(device.name).tag(device.id)
+                }
+                if savedMicrophoneMissing {
+                    Text("Saved device (not connected)").tag(state.microphoneDeviceID)
+                }
+            } label: {
+                Image(systemName: "mic")
+            }
+            .disabled(state.isRecording)
+
+            if savedMicrophoneMissing {
+                Text("Not connected: will record from the system default")
+                    .foregroundStyle(.orange)
+            }
+        }
+        .font(.caption)
+        .onAppear(perform: reloadMicrophones)
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in
+            reloadMicrophones()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)) { _ in
+            reloadMicrophones()
+        }
+    }
+
+    private func reloadMicrophones() {
+        microphones = MicrophoneCapture.availableDevices()
+        systemDefaultMicrophone = MicrophoneCapture.systemDefaultDevice()
     }
 
     // MARK: - Computed Properties
