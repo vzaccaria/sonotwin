@@ -1,10 +1,45 @@
 import AppKit
 import SwiftUI
 
+// Live transcription mostly feeds agents through the socket, so the popover shows
+// one status line (plus any error) and keeps every control under a collapsed Details.
 struct TranscriptionStatusView: View {
     @Bindable var state: RecordingState
+    @State private var showsDetails = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
+                Text("Transcription: \(statusTitle)")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                Spacer()
+                if state.transcriptionSnapshot.lagMilliseconds > 0 {
+                    Text("lag \(formattedLag)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let error = state.transcriptionError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            DisclosureGroup("Details", isExpanded: $showsDetails) {
+                details
+                    .padding(.top, 6)
+            }
+            .font(.caption)
+        }
+    }
+
+    private var details: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Toggle("Live transcription", isOn: $state.transcriptionEnabled)
@@ -27,18 +62,9 @@ struct TranscriptionStatusView: View {
                 .help("Start whisper-server and verify its health endpoint")
             }
 
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 8, height: 8)
-                Text(statusTitle)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                Spacer()
-                Text(serverTitle)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            Text(serverTitle)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text("Spoken language")
@@ -54,13 +80,6 @@ struct TranscriptionStatusView: View {
             }
             .disabled(state.isRecording)
 
-            if let error = state.transcriptionError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
             if state.transcriptionSnapshot.backlog > 0 || state.transcriptionSnapshot.lastCompletedSequence != nil {
                 HStack(spacing: 12) {
                     Label(
@@ -69,9 +88,6 @@ struct TranscriptionStatusView: View {
                     )
                     if let sequence = state.transcriptionSnapshot.lastCompletedSequence {
                         Text("Last #\(sequence)")
-                    }
-                    if state.transcriptionSnapshot.lagMilliseconds > 0 {
-                        Text("Lag \(formattedLag)")
                     }
                 }
                 .font(.caption2)

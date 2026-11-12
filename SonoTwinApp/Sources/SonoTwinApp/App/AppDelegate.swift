@@ -92,14 +92,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // MARK: Create Popover
         // The popover displays our SwiftUI UI when the menu bar icon is clicked.
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 360, height: 620)
         // .transient means clicking outside closes the popover automatically.
         popover.behavior = .transient
         popover.delegate = self
 
         // NSHostingController bridges SwiftUI views into AppKit.
         // This lets us use SwiftUI for our UI while using AppKit for the menu bar.
-        popover.contentViewController = NSHostingController(rootView: PopoverContentView(state: state))
+        // The popover takes the SwiftUI content's own size, so it fits the visible
+        // sections (and grows when Details is expanded) with no empty space.
+        let hosting = NSHostingController(rootView: PopoverContentView(state: state))
+        hosting.sizingOptions = .preferredContentSize
+        popover.contentViewController = hosting
         self.popover = popover
 
         // MARK: Start Socket Server

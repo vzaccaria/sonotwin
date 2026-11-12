@@ -14,7 +14,6 @@ struct PopoverContentView: View {
     @Bindable var state: RecordingState
 
     var body: some View {
-        ScrollView {
         // VStack stacks children vertically.
         // spacing: 16 puts 16 points between each child.
         VStack(spacing: 16) {
@@ -32,12 +31,13 @@ struct PopoverContentView: View {
             Divider()  // Horizontal line separator
 
             // MARK: Permission Status
-            // Shows mic and screen recording permission states.
-            // state.permissionManager is also @Observable, so permission
-            // changes automatically update this view.
-            PermissionStatusView(permissionManager: state.permissionManager)
+            // Shown only when a permission still needs attention: once both are
+            // granted there is nothing to act on.
+            if !permissionsGranted {
+                PermissionStatusView(permissionManager: state.permissionManager)
 
-            Divider()
+                Divider()
+            }
 
             // MARK: VU Meters
             // Real-time audio level meters.
@@ -104,7 +104,12 @@ struct PopoverContentView: View {
             }
         }
         .padding()  // Add padding around all edges
-        }
-        .frame(width: 360, height: 620)
+        .frame(width: 360)
+        .fixedSize(horizontal: false, vertical: true)  // Height follows the content
+    }
+
+    private var permissionsGranted: Bool {
+        state.permissionManager.microphonePermission == .authorized
+            && state.permissionManager.screenRecordingPermission == .authorized
     }
 }
