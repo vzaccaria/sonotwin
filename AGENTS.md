@@ -15,4 +15,13 @@ This repository uses the `/pm` workflow. `pm/` holds strategy and session state;
 
 - Build with `make debug` or `make build`.
 - Smoke-test socket changes with `./sonotwin-ctl status` while the app runs.
-- Never include generated `SonoTwinApp/.build/` artifacts in commits.
+- Never commit generated artifacts: `SonoTwinApp/.build/`, the app binary in
+  `SonoTwinApp.app/Contents/MacOS/`, or `_CodeSignature/`.
+
+## Releases
+
+Releases follow `pm/release-policy.md`. In every commit:
+
+- use conventional commits, with no bead IDs (at most a `Refs:` trailer);
+- when it lands a user-visible feature or fix, add its entry under
+  `## Unreleased` in `CHANGELOG.md`.

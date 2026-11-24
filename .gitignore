@@ -9,10 +9,9 @@ DerivedData/
 *.wav
 
 # Build artifacts
-AudioScribeApp/.build/
-AudioScribeApp/*.d
-AudioScribeApp/*.swiftdeps
-AudioScribeApp/AudioScribeApp.app/Contents/MacOS/AudioScribeApp
+SonoTwinApp/*.o
+SonoTwinApp/SonoTwinApp.app/Contents/MacOS/
+SonoTwinApp/SonoTwinApp.app/Contents/_CodeSignature/
 
 # Claude session data
 .claude/
