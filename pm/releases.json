@@ -1,5 +1,23 @@
 {
   "target": "SonoTwin",
   "tag_prefix": "v",
-  "releases": []
+  "releases": [
+    {
+      "version": "0.1.0",
+      "stage": "final",
+      "line": "main",
+      "gate": {
+        "description": "build: tests green and signed release build; smoke: live 30 s mic+system recording transcribed by the remote whisper-server, non-empty transcript.jsonl; review: Fable + Astra on the whole tree (first release), blocking findings fixed",
+        "commands": [
+          "make test",
+          "make build",
+          "codesign --verify --strict SonoTwinApp/SonoTwinApp.app",
+          "make run",
+          "./sonotwin-ctl start -o /tmp/sonotwin-gate-0.1.0.wav -d 30 --transcribe",
+          "./sonotwin-ctl status"
+        ],
+        "runs_on": "local workstation, with the Tailscale VM reachable for the smoke"
+      }
+    }
+  ]
 }
