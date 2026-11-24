@@ -1,6 +1,6 @@
 # SonoTwin — State
 
-Updated: 2026-09-07
+Updated: 2026-11-24
 
 ## Roadmap
 
@@ -10,6 +10,6 @@ Parked: none.
 
 ## Handoff
 
-Written: 2026-09-07 13:40 · OpenAI Codex
+Written: 2026-11-24 · omp
 
-Done: closed `audioscribe-y4u`; plain `make build` now signs with the local `SonoTwin Local Development` identity by default, preserving the existing microphone and ScreenCapture TCC grants across rebuilds. State: release build, strict code-signature verification, dual-source permission smoke, and live socket status passed; app is idle with transcription enabled and no server loaded. Next: no active tracked work. Gotchas: this workstation must retain the named certificate; other machines without it can explicitly set `SONOTWIN_SIGNING_IDENTITY=-`; never commit `SonoTwinApp/.build/` or generated bundle artifacts. Blockers: none.
+Done: `audioscribe-q3r` persisted microphone picker (device in popover and `sonotwin-ctl status`); compact popover (transcription as one status line, collapsed Details); `SonoTwinApp/.build/` untracked; PM aligned to the current skill. State: `main` committed and working; the working tree holds uncommitted, untracked-in-bd transcription changes (28 s chunks with 2 s overlap, silent-chunk skip in `TranscriptionChunkPipeline`, README note) not authored in this session. Next: 1) decide whether those changes get a bead, tests and a commit 2) open a bead for cancelling a large transcription drain backlog if still wanted. Gotchas: no release tags or `release:*` labels yet — run `/pm release define-policy` before the first release; the signing certificate must stay on this workstation; never commit `SonoTwinApp/.build/`. Blockers: none.
